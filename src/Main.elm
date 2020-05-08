@@ -1,10 +1,8 @@
 module Main exposing (Model, init, main)
 
 import Browser
+import Counter exposing (counterPanel)
 import Element exposing (Color, Element, alignRight, alignTop, centerY, column, el, fill, height, paddingXY, rgb, row, spacing, text, width)
-import Element.Background as Background
-import Element.Border as Border
-import Element.Font as Font exposing (center)
 import Element.Input exposing (button, labelLeft)
 import Html exposing (Html)
 import Log exposing (Diff, Log, createLog, diffLog, update)
@@ -14,28 +12,16 @@ main =
     Browser.element { init = init, update = update, view = view, subscriptions = subscriptions }
 
 
+
+-- MODEL
+
+
 type alias Model =
     { players : List Player
-    , newPlayerName : String
     , selectedPlayer : Int
+    , newPlayerName : String
     , display : PanelDisplay
     }
-
-
-init : () -> ( Model, Cmd Msg )
-init _ =
-    ( { players = List.map createPlayer [ "Nick", "Kaitlin" ]
-      , newPlayerName = ""
-      , display = LifePanel
-      , selectedPlayer = 0
-      }
-    , Cmd.none
-    )
-
-
-type PanelDisplay
-    = LifePanel
-    | PoisonPanel
 
 
 type alias Player =
@@ -44,6 +30,22 @@ type alias Player =
     , poisonLog : Log
     , commanderDamage : List ( String, Int )
     }
+
+
+type PanelDisplay
+    = LifePanel
+    | PoisonPanel
+
+
+init : () -> ( Model, Cmd Msg )
+init _ =
+    ( { players = List.map createPlayer [ "Nick", "Kaitlin" ]
+      , selectedPlayer = 0
+      , newPlayerName = ""
+      , display = LifePanel
+      }
+    , Cmd.none
+    )
 
 
 createPlayer : String -> Player
@@ -55,18 +57,8 @@ createPlayer name =
     }
 
 
-updateLife : Diff -> Player -> Player
-updateLife diff player =
-    { player
-        | lifeLog = Log.update diff player.lifeLog
-    }
 
-
-updatePoison : Diff -> Player -> Player
-updatePoison diff player =
-    { player
-        | poisonLog = Log.update diff player.poisonLog
-    }
+-- UPDATE
 
 
 type Msg
@@ -92,34 +84,32 @@ update msg model =
             , Cmd.none
             )
 
-        UpdateLife id life ->
+        UpdateLife id lifeDiff ->
             ( { model
                 | players =
                     List.indexedMap
-                        (\i ->
-                            \player ->
-                                if i == id then
-                                    updateLife life player
+                        (\i player ->
+                            if i == id then
+                                { player | lifeLog = Log.update lifeDiff player.lifeLog }
 
-                                else
-                                    player
+                            else
+                                player
                         )
                         model.players
               }
             , Cmd.none
             )
 
-        UpdatePoison id poison ->
+        UpdatePoison id poisonDiff ->
             ( { model
                 | players =
                     List.indexedMap
-                        (\i ->
-                            \player ->
-                                if i == id then
-                                    updatePoison poison player
+                        (\i player ->
+                            if i == id then
+                                { player | poisonLog = Log.update poisonDiff player.poisonLog }
 
-                                else
-                                    player
+                            else
+                                player
                         )
                         model.players
               }
@@ -144,7 +134,11 @@ update msg model =
             )
 
         SelectPlayer id ->
-            ( { model | selectedPlayer = id }
+            ( if id < List.length model.players then
+                { model | selectedPlayer = id }
+
+              else
+                model
             , Cmd.none
             )
 
@@ -152,6 +146,30 @@ update msg model =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.none
+
+
+lifeCounterTheme : Counter.Theme
+lifeCounterTheme =
+    { bg = rgb 0.9 0.9 0.9
+    , buttonBg = rgb 0.9 0.3 0.3
+    , buttonBgShadow = rgb 1.0 0.3 0.3
+    }
+
+
+poisonCounterTheme : Counter.Theme
+poisonCounterTheme =
+    { bg = rgb 0.9 0.9 0.9
+    , buttonBg = rgb 0.3 0.8 0.3
+    , buttonBgShadow = rgb 0.3 0.7 0.3
+    }
+
+
+lifeCounter =
+    counterPanel lifeCounterTheme
+
+
+poisonCounter =
+    counterPanel poisonCounterTheme
 
 
 view : Model -> Html Msg
@@ -170,15 +188,15 @@ view model =
                     [ width fill
                     , height fill
                     ]
-                    [ el [] (mtgButton (rgb 0.6 0.6 0.6) (rgb 0.5 0.5 0.5) TogglePanel "Toggle")
+                    [ button [] { onPress = Just TogglePanel, label = text "Toggle" }
                     , column [ spacing 10 ]
                         [ case maybePlayer of
                             Just selectedPlayer ->
                                 if model.display == LifePanel then
-                                    lifePanel model.selectedPlayer selectedPlayer
+                                    lifeCounter model.selectedPlayer (\i diff -> UpdateLife i diff) selectedPlayer.name selectedPlayer.lifeLog
 
                                 else
-                                    poisonPanel model.selectedPlayer selectedPlayer
+                                    poisonCounter model.selectedPlayer (\i diff -> UpdatePoison i diff) selectedPlayer.name selectedPlayer.poisonLog
 
                             Nothing ->
                                 text "No players"
@@ -205,91 +223,6 @@ view model =
                 ]
             , button [] { onPress = Just Reset, label = text "Reset" }
             ]
-
-
-mtgButton : Color -> Color -> msg -> String -> Element msg
-mtgButton bg shadow msg label =
-    button
-        [ Background.color bg
-        , Font.color (rgb 1 1 1)
-        , width fill
-        , paddingXY 10 10
-        , Border.rounded 5
-        , Border.solid
-        , Element.mouseOver
-            [ Background.color shadow
-            , Border.color (rgb 0 0 0)
-            , Border.shadow
-                { offset = ( 1.0, 1.0 )
-                , size = 0.2
-                , blur = 5.0
-                , color = rgb 0.2 0.2 0.2
-                }
-            ]
-        ]
-        { onPress = Just msg
-        , label = text label
-        }
-
-
-lifeButton : msg -> String -> Element msg
-lifeButton =
-    mtgButton (rgb 0.9 0.3 0.3) (rgb 1.0 0.3 0.3)
-
-
-poisonButton : msg -> String -> Element msg
-poisonButton =
-    mtgButton (rgb 0.3 0.8 0.3) (rgb 0.3 0.7 0.3)
-
-
-lifePanel : Int -> Player -> Element Msg
-lifePanel i player =
-    row
-        [ paddingXY 10 10
-        , Background.color (rgb 0.9 0.9 0.9)
-        , Border.rounded 5
-        ]
-        [ column
-            [ spacing 10 ]
-            [ lifeButton (UpdateLife i -5) "-5"
-            , lifeButton (UpdateLife i -1) "-1"
-            ]
-        , column
-            [ spacing 10, paddingXY 10 0 ]
-            [ text player.name
-            , el [ width fill, center ] (text (String.fromInt (Log.current player.lifeLog)))
-            ]
-        , column
-            [ spacing 10 ]
-            [ lifeButton (UpdateLife i 5) "+5"
-            , lifeButton (UpdateLife i 1) "+1"
-            ]
-        ]
-
-
-poisonPanel : Int -> Player -> Element Msg
-poisonPanel i player =
-    row
-        [ paddingXY 10 10
-        , Background.color (rgb 0.9 0.9 0.9)
-        , Border.rounded 5
-        ]
-        [ column
-            [ spacing 10 ]
-            [ poisonButton (UpdatePoison i -5) "-5"
-            , poisonButton (UpdatePoison i -1) "-1"
-            ]
-        , column
-            [ spacing 10, paddingXY 10 0 ]
-            [ text player.name
-            , el [ width fill, center ] (text (String.fromInt (Log.current player.poisonLog)))
-            ]
-        , column
-            [ spacing 10 ]
-            [ poisonButton (UpdatePoison i 5) "+5"
-            , poisonButton (UpdatePoison i 1) "+1"
-            ]
-        ]
 
 
 playerList : List Player -> Element Msg
