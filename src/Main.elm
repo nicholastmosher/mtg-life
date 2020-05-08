@@ -1,12 +1,13 @@
 module Main exposing (Model, init, main)
 
 import Browser
-import Element exposing (Color, Element, alignRight, alignTop, centerY, column, el, fill, height, paddingXY, px, rgb, row, scrollbarY, spacing, text, width)
+import Element exposing (Color, Element, alignRight, alignTop, centerY, column, el, fill, height, paddingXY, rgb, row, spacing, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font exposing (center)
 import Element.Input exposing (button, labelLeft)
 import Html exposing (Html)
+import Log exposing (Diff, Log, createLog, diffLog, update)
 
 
 main =
@@ -32,18 +33,6 @@ init _ =
     )
 
 
-type alias Diff =
-    Int
-
-
-type alias Life =
-    Int
-
-
-type alias Poison =
-    Int
-
-
 type PanelDisplay
     = LifePanel
     | PoisonPanel
@@ -51,10 +40,8 @@ type PanelDisplay
 
 type alias Player =
     { name : String
-    , life : Life
-    , lifeLog : List ( Diff, Life )
-    , poison : Poison
-    , poisonLog : List ( Diff, Poison )
+    , lifeLog : Log
+    , poisonLog : Log
     , commanderDamage : List ( String, Int )
     }
 
@@ -62,10 +49,8 @@ type alias Player =
 createPlayer : String -> Player
 createPlayer name =
     { name = name
-    , life = 40
-    , lifeLog = [ ( 0, 40 ) ]
-    , poison = 0
-    , poisonLog = [ ( 0, 0 ) ]
+    , lifeLog = createLog 40
+    , poisonLog = createLog 0
     , commanderDamage = []
     }
 
@@ -73,16 +58,14 @@ createPlayer name =
 updateLife : Diff -> Player -> Player
 updateLife diff player =
     { player
-        | life = player.life + diff
-        , lifeLog = ( diff, player.life + diff ) :: player.lifeLog
+        | lifeLog = Log.update diff player.lifeLog
     }
 
 
 updatePoison : Diff -> Player -> Player
 updatePoison diff player =
     { player
-        | poison = player.poison + diff
-        , poisonLog = ( diff, player.poison + diff ) :: player.poisonLog
+        | poisonLog = Log.update diff player.poisonLog
     }
 
 
@@ -274,7 +257,7 @@ lifePanel i player =
         , column
             [ spacing 10, paddingXY 10 0 ]
             [ text player.name
-            , el [ width fill, center ] (text (String.fromInt player.life))
+            , el [ width fill, center ] (text (String.fromInt (Log.current player.lifeLog)))
             ]
         , column
             [ spacing 10 ]
@@ -299,7 +282,7 @@ poisonPanel i player =
         , column
             [ spacing 10, paddingXY 10 0 ]
             [ text player.name
-            , el [ width fill, center ] (text (String.fromInt player.poison))
+            , el [ width fill, center ] (text (String.fromInt (Log.current player.poisonLog)))
             ]
         , column
             [ spacing 10 ]
@@ -324,71 +307,6 @@ playerListRow id player =
             row
                 [ width fill, paddingXY 20 10 ]
                 [ text player.name
-                , el [ alignRight ] (text (String.fromInt player.life))
+                , el [ alignRight ] (text (String.fromInt (Log.current player.lifeLog)))
                 ]
         }
-
-
-diffLog : List ( Diff, Int ) -> Element Msg
-diffLog entries =
-    let
-        ( diffs, totals ) =
-            List.unzip entries
-    in
-    row
-        [ height fill
-        , width fill
-        , Border.color (rgb 0 0 0)
-        , Border.solid
-        , Border.width 2
-        ]
-        [ column
-            [ alignTop
-            ]
-            (List.map (\i -> diffBox i) diffs)
-        , column
-            [ alignTop
-            ]
-            (List.map (\i -> totalBox i) totals)
-        ]
-
-
-totalBox : Int -> Element Msg
-totalBox int =
-    el
-        [ Border.widthXY 1 2
-        , Border.solid
-        , Border.color (rgb 0 0 0)
-        , paddingXY 10 10
-        ]
-        (text (String.fromInt int))
-
-
-diffBox : Int -> Element Msg
-diffBox int =
-    let
-        natural =
-            int > 0
-
-        positive =
-            int >= 0
-
-        negative =
-            int < 0
-    in
-    el
-        [ Border.widthXY 1 2
-        , Border.solid
-        , Border.color (rgb 0 0 0)
-        , paddingXY 10 10
-        , width fill
-        , if natural then
-            Font.color (rgb 0.3 0.9 0.3)
-
-          else if negative then
-            Font.color (rgb 0.9 0.3 0.3)
-
-          else
-            Font.color (rgb 0 0 0)
-        ]
-        (text ((if positive then "+" else "") ++ (String.fromInt int)))
