@@ -55,7 +55,6 @@ diffLog log =
         , Border.color (rgb 0 0 0)
         , Border.solid
         , Border.width 2
-        , Element.explain Debug.todo
         ]
         [ column
             [ alignTop
