@@ -39,7 +39,7 @@ type PanelDisplay
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { players = List.map createPlayer [ "Nick", "Kaitlin" ]
+    ( { players = []
       , selectedPlayer = 0
       , newPlayerName = ""
       , display = LifePanel
@@ -129,7 +129,10 @@ update msg model =
             )
 
         AddPlayer name ->
-            ( { model | players = model.players ++ [ createPlayer name ] }
+            ( { model
+                  | players = model.players ++ [ createPlayer name ]
+                  , newPlayerName = ""
+              }
             , Cmd.none
             )
 
