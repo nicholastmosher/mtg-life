@@ -1,11 +1,12 @@
 module Main exposing (Model, init, main)
 
 import Browser
-import Counter exposing (counterPanel)
-import Element exposing (Color, Element, alignRight, alignTop, centerY, column, el, fill, height, paddingXY, rgb, row, spacing, text, width)
-import Element.Input exposing (button, labelLeft)
+import Counter exposing (viewCounterPanel)
+import Element exposing (Color, Element, alignRight, alignTop, centerX, column, el, fill, fillPortion, height, paddingXY, px, rgb, row, text, width)
+import Element.Background as Background
+import Element.Input exposing (button, labelHidden, placeholder)
 import Html exposing (Html)
-import Log exposing (Diff, Log, createLog, diffLog, update)
+import Log exposing (Diff, Log, createLog, update)
 
 
 main =
@@ -39,7 +40,7 @@ type PanelDisplay
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { players = []
+    ( { players =  []
       , selectedPlayer = 0
       , newPlayerName = ""
       , display = LifePanel
@@ -130,8 +131,8 @@ update msg model =
 
         AddPlayer name ->
             ( { model
-                  | players = model.players ++ [ createPlayer name ]
-                  , newPlayerName = ""
+                | players = model.players ++ [ createPlayer name ]
+                , newPlayerName = ""
               }
             , Cmd.none
             )
@@ -151,6 +152,185 @@ subscriptions _ =
     Sub.none
 
 
+view : Model -> Html Msg
+view model =
+    Element.layout
+        [ width fill
+        , height fill
+        ]
+    <|
+        column
+            [ width fill
+            , height fill
+            ]
+            [ el
+                [ width fill
+                , height <| fillPortion 1
+                ]
+              <|
+                viewPlayerNamesPanel model
+            , el
+                [ width fill
+                , height <| fillPortion 2
+                ]
+              <|
+                viewCountPanel model
+            ]
+
+
+viewPlayerNamesPanel : Model -> Element Msg
+viewPlayerNamesPanel model =
+    let
+        ( left, right ) =
+            model.players
+                |> List.indexedMap (\i p -> ( i, p ))
+                |> List.partition (\( i, _ ) -> modBy 2 i == 0)
+    in
+    column
+        [ width fill
+        , height fill
+        ]
+        [ row
+            [ width fill
+            , height <| fillPortion 3
+            , Element.explain Debug.todo
+            ]
+            [ column
+                -- Even indices in left column
+                [ width <| fillPortion 1
+                , height fill
+                ]
+                (List.map (\( _, p ) -> text p.name) left)
+            , column
+                -- Odd indices in right column
+                [ width <| fillPortion 1
+                , height fill
+                ]
+                (right
+                    |> List.map (\( _, p ) -> p.name)
+                    |> List.map (\name -> text name)
+                )
+            ]
+        , el
+            [ width fill
+            , height <| fillPortion 1
+            ]
+          <|
+            viewNewPlayer model
+        ]
+
+
+viewPlayerName : Model -> Int -> Element Msg
+viewPlayerName model playerId =
+    el
+        [ width fill
+        , height fill
+        ]
+        <| text "Name"
+
+
+viewNewPlayer : Model -> Element Msg
+viewNewPlayer model =
+    row
+        [ width fill
+        , height fill
+        ]
+        [ Element.Input.text
+            [ width <| fillPortion 5
+            , height fill
+            ]
+            { onChange = UpdateNewPlayerName
+            , text = model.newPlayerName
+            , placeholder = Just <| placeholder [] <| text "New Player Name"
+            , label = labelHidden "New Player Name"
+            }
+        , button
+            [ width <| fillPortion 1
+            , height fill
+            ]
+            { onPress = Just (AddPlayer model.newPlayerName)
+            , label = el [ centerX ] <| text "+"
+            }
+        , button
+            [ width <| fillPortion 2
+            , height fill
+            ]
+            { onPress = Just Reset
+            , label = el [ centerX ] <| text "Reset"
+            }
+        ]
+
+
+viewCountPanel : Model -> Element Msg
+viewCountPanel model =
+    column
+        [ width fill
+        , height fill
+        ]
+        [ row
+            [ width fill
+            , height <| fillPortion 1
+            , Element.explain Debug.todo
+            ]
+            [ text "Count Log" ]
+        , row
+            [ width fill
+            , height <| fillPortion 4
+            ]
+            [ el
+                [ centerX ]
+              <|
+                text "Counter"
+            ]
+        , el
+            [ width fill
+            , height <| fillPortion 1
+            ]
+          <|
+            viewCountModes model
+        ]
+
+
+viewCountModes : Model -> Element Msg
+viewCountModes model =
+    row
+        [ width fill
+        , height fill
+        , Element.explain Debug.todo
+        ]
+        [ el
+            [ width <| fillPortion 1
+            , height fill
+            ]
+          <|
+            text "Life"
+        , el
+            [ width <| fillPortion 1
+            , height fill
+            ]
+          <|
+            text "Poison"
+        , el
+            [ width <| fillPortion 1
+            , height fill
+            ]
+          <|
+            text "Cmdr"
+        , el
+            [ width <| fillPortion 1
+            , height fill
+            ]
+          <|
+            text "Mana"
+        , el
+            [ width <| fillPortion 1
+            , height fill
+            ]
+          <|
+            text "Custom"
+        ]
+
+
 lifeCounterTheme : Counter.Theme
 lifeCounterTheme =
     { bg = rgb 0.9 0.9 0.9
@@ -167,76 +347,96 @@ poisonCounterTheme =
     }
 
 
-lifeCounter =
-    counterPanel lifeCounterTheme
+viewLifeCounter =
+    viewCounterPanel lifeCounterTheme
 
 
-poisonCounter =
-    counterPanel poisonCounterTheme
+viewPoisonCounter =
+    viewCounterPanel poisonCounterTheme
 
 
-view : Model -> Html Msg
-view model =
-    let
-        maybePlayer =
-            List.head (List.drop model.selectedPlayer model.players)
-    in
-    Element.layout [] <|
-        column
-            []
-            [ row
-                []
-                [ playerList model.players
-                , column
-                    [ width fill
-                    , height fill
-                    ]
-                    [ button [] { onPress = Just TogglePanel, label = text "Toggle" }
-                    , column [ spacing 10 ]
-                        [ case maybePlayer of
-                            Just selectedPlayer ->
-                                if model.display == LifePanel then
-                                    lifeCounter model.selectedPlayer (\i diff -> UpdateLife i diff) selectedPlayer.name selectedPlayer.lifeLog
-
-                                else
-                                    poisonCounter model.selectedPlayer (\i diff -> UpdatePoison i diff) selectedPlayer.name selectedPlayer.poisonLog
-
-                            Nothing ->
-                                text "No players"
-                        ]
-                    ]
-                , case maybePlayer of
-                    Just selectedPlayer ->
-                        diffLog selectedPlayer.lifeLog
-
-                    Nothing ->
-                        text "No selected player"
-                ]
-            , row
-                []
-                [ el [ width fill ]
-                    (Element.Input.text []
-                        { onChange = UpdateNewPlayerName
-                        , text = model.newPlayerName
-                        , placeholder = Nothing
-                        , label = labelLeft [ height fill, centerY ] (text "Name")
-                        }
-                    )
-                , button [] { onPress = Just (AddPlayer model.newPlayerName), label = text "Add" }
-                ]
-            , button [] { onPress = Just Reset, label = text "Reset" }
-            ]
+viewResetButton : Element Msg
+viewResetButton =
+    button []
+        { onPress = Just Reset
+        , label = text "Reset"
+        }
 
 
-playerList : List Player -> Element Msg
-playerList players =
+viewNewPlayerInput : Model -> Element Msg
+viewNewPlayerInput model =
     column
-        [ alignTop ]
-        (List.indexedMap playerListRow players)
+        [ paddingXY 10 10 ]
+        [ Element.Input.text []
+            { onChange = UpdateNewPlayerName
+            , text = model.newPlayerName
+            , placeholder = Just (placeholder [] <| text "Name")
+            , label = labelHidden "Name"
+            }
+        , button
+            [ centerX
+            , paddingXY 10 10
+            ]
+            { onPress = Just (AddPlayer model.newPlayerName)
+            , label = text "Add"
+            }
+        ]
 
 
-playerListRow : Int -> Player -> Element Msg
-playerListRow id player =
+viewPlayerPanel : Model -> Player -> Element Msg
+viewPlayerPanel model player =
+    if model.display == LifePanel then
+        viewLifeCounter model.selectedPlayer UpdateLife player.name player.lifeLog
+
+    else
+        viewPoisonCounter model.selectedPlayer UpdatePoison player.name player.poisonLog
+
+
+viewPlayerPanelDefault : Element Msg
+viewPlayerPanelDefault =
+    el
+        [ paddingXY 20 20
+        , Background.color (rgb 0.9 0.9 0.9)
+        ]
+    <|
+        text "No players"
+
+
+viewPlayerColumn : Model -> Element Msg
+viewPlayerColumn model =
+    column
+        [ alignTop
+        , height fill
+        ]
+        [ viewPlayerList model
+        , viewNewPlayerInput model
+        ]
+
+
+viewPlayerList : Model -> Element Msg
+viewPlayerList model =
+    if List.isEmpty model.players then
+        viewPlayerListDefault
+
+    else
+        column
+            [ alignTop ]
+        <|
+            List.indexedMap viewPlayerListRow model.players
+
+
+viewPlayerListDefault : Element Msg
+viewPlayerListDefault =
+    el
+        [ paddingXY 20 20
+        , height (px 200)
+        ]
+    <|
+        text "No players"
+
+
+viewPlayerListRow : Int -> Player -> Element Msg
+viewPlayerListRow id player =
     button [ width fill ]
         { onPress = Just (SelectPlayer id)
         , label =

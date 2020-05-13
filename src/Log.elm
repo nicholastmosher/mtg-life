@@ -1,4 +1,4 @@
-module Log exposing (Diff, Log(..), createLog, current, diffBox, diffLog, history, totalBox, update)
+module Log exposing (Diff, Log(..), createLog, current, history, update, viewDiffBox, viewDiffLog, viewTotalBox)
 
 import Element exposing (Element, alignTop, column, el, fill, height, paddingXY, rgb, row, text, width)
 import Element.Border as Border
@@ -43,8 +43,8 @@ update diff (Log log) =
         }
 
 
-diffLog : Log -> Element msg
-diffLog log =
+viewDiffLog : Log -> Element msg
+viewDiffLog log =
     let
         ( diffs, totals ) =
             List.unzip (history log)
@@ -59,16 +59,16 @@ diffLog log =
         [ column
             [ alignTop
             ]
-            (List.map (\i -> diffBox i) diffs)
+            (List.map (\i -> viewDiffBox i) diffs)
         , column
             [ alignTop
             ]
-            (List.map (\i -> totalBox i) totals)
+            (List.map (\i -> viewTotalBox i) totals)
         ]
 
 
-totalBox : Int -> Element msg
-totalBox int =
+viewTotalBox : Int -> Element msg
+viewTotalBox int =
     el
         [ Border.widthXY 1 2
         , Border.solid
@@ -79,8 +79,8 @@ totalBox int =
         (text (String.fromInt int))
 
 
-diffBox : Int -> Element msg
-diffBox int =
+viewDiffBox : Int -> Element msg
+viewDiffBox int =
     let
         natural =
             int > 0

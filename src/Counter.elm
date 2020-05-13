@@ -1,4 +1,4 @@
-module Counter exposing (OnChange, Theme, counterButton, counterPanel)
+module Counter exposing (OnChange, Theme, viewCounterButton, viewCounterPanel)
 
 import Element exposing (Color, Element, column, el, fill, paddingXY, rgb, row, spacing, text, width)
 import Element.Background as Background
@@ -19,8 +19,8 @@ type alias OnChange msg key =
     key -> Diff -> msg
 
 
-counterPanel : Theme -> key -> OnChange msg key -> String -> Log -> Element msg
-counterPanel theme key change name log =
+viewCounterPanel : Theme -> key -> OnChange msg key -> String -> Log -> Element msg
+viewCounterPanel theme key change name log =
     row
         [ paddingXY 10 10
         , Background.color (rgb 0.9 0.9 0.9)
@@ -28,8 +28,8 @@ counterPanel theme key change name log =
         ]
         [ column
             [ spacing 10 ]
-            [ counterButton theme (change key -5) "-5"
-            , counterButton theme (change key -1) "-1"
+            [ viewCounterButton theme (change key -5) "-5"
+            , viewCounterButton theme (change key -1) "-1"
             ]
         , column
             [ spacing 10, paddingXY 10 0 ]
@@ -38,14 +38,14 @@ counterPanel theme key change name log =
             ]
         , column
             [ spacing 10 ]
-            [ counterButton theme (change key 5) "+5"
-            , counterButton theme (change key 1) "+1"
+            [ viewCounterButton theme (change key 5) "+5"
+            , viewCounterButton theme (change key 1) "+1"
             ]
         ]
 
 
-counterButton : Theme -> msg -> String -> Element msg
-counterButton theme msg label =
+viewCounterButton : Theme -> msg -> String -> Element msg
+viewCounterButton theme msg label =
     button
         [ Background.color theme.buttonBg
         , Font.color (rgb 1 1 1)
