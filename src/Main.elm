@@ -1,12 +1,19 @@
 module Main exposing (Model, init, main)
 
 import Browser
+import Color
 import Counter exposing (viewCounterPanel)
-import Element exposing (Color, Element, alignRight, alignTop, centerX, column, el, fill, fillPortion, height, paddingXY, px, rgb, row, text, width)
+import Dict exposing (Dict)
+import Element exposing (Color, Element, alignRight, centerX, centerY, column, el, fill, fillPortion, height, paddingXY, px, rgb, rgb255, row, text, width)
 import Element.Background as Background
+import Element.Border as Border
 import Element.Input exposing (button, labelHidden, placeholder)
 import Html exposing (Html)
+import Icons
 import Log exposing (Diff, Log, createLog, update)
+import Material.Icons as Filled
+import Material.Icons.Types exposing (Coloring(..))
+import Svg exposing (Svg)
 
 
 main =
@@ -18,18 +25,25 @@ main =
 
 
 type alias Model =
-    { players : List Player
-    , selectedPlayer : Int
+    { players : List PlayerId
+    , playerInfo : Dict PlayerId PlayerInfo
+    , nextPlayerId : PlayerId
+    , selectedPlayer : PlayerId
     , newPlayerName : String
     , display : PanelDisplay
+    , counterMode : CounterMode
     }
 
 
-type alias Player =
-    { name : String
+type alias PlayerId =
+    Int
+
+
+type alias PlayerInfo =
+    { id : PlayerId
+    , name : String
     , lifeLog : Log
     , poisonLog : Log
-    , commanderDamage : List ( String, Int )
     }
 
 
@@ -38,23 +52,39 @@ type PanelDisplay
     | PoisonPanel
 
 
+type CounterMode
+    = Health
+    | Poison
+    | Commander
+    | Mana
+    | Custom
+
+
+type alias Accent =
+    { border : Color
+    }
+
+
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { players =  []
+    ( { players = [ 0 ]
+      , playerInfo = Dict.fromList [ ( 0, createPlayer ( 0, "Player 1" ) ) ]
+      , nextPlayerId = 1
       , selectedPlayer = 0
       , newPlayerName = ""
       , display = LifePanel
+      , counterMode = Health
       }
     , Cmd.none
     )
 
 
-createPlayer : String -> Player
-createPlayer name =
-    { name = name
+createPlayer : ( PlayerId, String ) -> PlayerInfo
+createPlayer ( id, name ) =
+    { id = id
+    , name = name
     , lifeLog = createLog 40
     , poisonLog = createLog 0
-    , commanderDamage = []
     }
 
 
@@ -68,15 +98,16 @@ type Msg
     | AddPlayer String
     | SelectPlayer Int
     | TogglePanel
-    | UpdateLife Int Diff
-    | UpdatePoison Int Diff
+    | UpdateLife PlayerId Diff
+    | UpdatePoison PlayerId Diff
+    | SetMode CounterMode
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Reset ->
-            ( { model | players = List.map (\player -> createPlayer player.name) model.players }
+            ( { model | playerInfo = Dict.map (\id player -> createPlayer ( id, player.name )) model.playerInfo }
             , Cmd.none
             )
 
@@ -87,32 +118,20 @@ update msg model =
 
         UpdateLife id lifeDiff ->
             ( { model
-                | players =
-                    List.indexedMap
-                        (\i player ->
-                            if i == id then
-                                { player | lifeLog = Log.update lifeDiff player.lifeLog }
-
-                            else
-                                player
-                        )
-                        model.players
+                | playerInfo =
+                    Dict.update id
+                        (Maybe.map (\pInfo -> { pInfo | lifeLog = Log.update lifeDiff pInfo.lifeLog }))
+                        model.playerInfo
               }
             , Cmd.none
             )
 
         UpdatePoison id poisonDiff ->
             ( { model
-                | players =
-                    List.indexedMap
-                        (\i player ->
-                            if i == id then
-                                { player | poisonLog = Log.update poisonDiff player.poisonLog }
-
-                            else
-                                player
-                        )
-                        model.players
+                | playerInfo =
+                    Dict.update id
+                        (Maybe.map (\pInfo -> { pInfo | poisonLog = Log.update poisonDiff pInfo.poisonLog }))
+                        model.playerInfo
               }
             , Cmd.none
             )
@@ -130,8 +149,14 @@ update msg model =
             )
 
         AddPlayer name ->
+            let
+                id =
+                    model.nextPlayerId
+            in
             ( { model
-                | players = model.players ++ [ createPlayer name ]
+                | playerInfo = Dict.insert id (createPlayer ( id, name )) model.playerInfo
+                , players = model.players ++ [ id ]
+                , nextPlayerId = id + 1
                 , newPlayerName = ""
               }
             , Cmd.none
@@ -146,17 +171,73 @@ update msg model =
             , Cmd.none
             )
 
+        SetMode mode ->
+            ( { model | counterMode = mode }, Cmd.none )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.none
 
 
+accentLife : Accent
+accentLife =
+    { border = rgb 0.9 0.3 0.3
+    }
+
+
+accentPoison : Accent
+accentPoison =
+    { border = rgb 0.2 0.8 0.2
+    }
+
+
+accentCommander : Accent
+accentCommander =
+    { border = rgb 0.2 0.5 0.9
+    }
+
+
+accentMana : Accent
+accentMana =
+    { border = rgb255 174 107 77
+    }
+
+
+accentCustom : Accent
+accentCustom =
+    { border = rgb255 201 196 191
+    }
+
+
 view : Model -> Html Msg
 view model =
+    case model.counterMode of
+        Health ->
+            viewAccented accentLife model
+
+        Poison ->
+            viewAccented accentPoison model
+
+        Commander ->
+            viewAccented accentCommander model
+
+        Mana ->
+            viewAccented accentMana model
+
+        Custom ->
+            viewAccented accentCustom model
+
+
+viewAccented : Accent -> Model -> Html Msg
+viewAccented accent model =
     Element.layout
         [ width fill
         , height fill
+        , Border.solid
+        , Border.width 4
+        , Border.color accent.border
+        , Border.rounded 8
         ]
     <|
         column
@@ -174,8 +255,18 @@ view model =
                 , height <| fillPortion 2
                 ]
               <|
-                viewCountPanel model
+                viewCountPanel accent model
             ]
+
+
+playerStatCurrentLife : PlayerInfo -> String
+playerStatCurrentLife player =
+    String.fromInt <| Log.current player.lifeLog
+
+
+playerStatCurrentPoison : PlayerInfo -> String
+playerStatCurrentPoison player =
+    String.fromInt <| Log.current player.poisonLog
 
 
 viewPlayerNamesPanel : Model -> Element Msg
@@ -183,8 +274,17 @@ viewPlayerNamesPanel model =
     let
         ( left, right ) =
             model.players
-                |> List.indexedMap (\i p -> ( i, p ))
+                |> List.map (\id -> Dict.get id model.playerInfo)
+                |> List.indexedMap (\index mpInfo -> ( index, mpInfo ))
                 |> List.partition (\( i, _ ) -> modBy 2 i == 0)
+
+        stat =
+            case model.counterMode of
+                Poison ->
+                    playerStatCurrentPoison
+
+                _ ->
+                    playerStatCurrentLife
     in
     column
         [ width fill
@@ -193,23 +293,21 @@ viewPlayerNamesPanel model =
         [ row
             [ width fill
             , height <| fillPortion 3
-            , Element.explain Debug.todo
             ]
             [ column
                 -- Even indices in left column
                 [ width <| fillPortion 1
                 , height fill
                 ]
-                (List.map (\( _, p ) -> text p.name) left)
+              <|
+                List.map (\( _, maybeP ) -> Maybe.withDefault viewPlayerNameError <| Maybe.map (viewPlayerName model stat) maybeP) left
             , column
                 -- Odd indices in right column
                 [ width <| fillPortion 1
                 , height fill
                 ]
-                (right
-                    |> List.map (\( _, p ) -> p.name)
-                    |> List.map (\name -> text name)
-                )
+              <|
+                List.map (\( _, maybeP ) -> Maybe.withDefault viewPlayerNameError <| Maybe.map (viewPlayerName model stat) maybeP) right
             ]
         , el
             [ width fill
@@ -220,13 +318,33 @@ viewPlayerNamesPanel model =
         ]
 
 
-viewPlayerName : Model -> Int -> Element Msg
-viewPlayerName model playerId =
+viewPlayerName : Model -> (PlayerInfo -> String) -> PlayerInfo -> Element Msg
+viewPlayerName model playerStat playerInfo =
+    row
+        [ width fill
+        , Border.solid
+        , Border.widthEach { top = 2, left = 2, right = 1, bottom = 1 }
+        ]
+        [ el
+            [ paddingXY 10 10 ]
+          <|
+            text playerInfo.name
+        , el
+            [ alignRight, paddingXY 10 10 ]
+          <|
+            text <|
+                playerStat playerInfo
+        ]
+
+
+viewPlayerNameError : Element Msg
+viewPlayerNameError =
     el
         [ width fill
         , height fill
         ]
-        <| text "Name"
+    <|
+        text "Error"
 
 
 viewNewPlayer : Model -> Element Msg
@@ -249,20 +367,13 @@ viewNewPlayer model =
             , height fill
             ]
             { onPress = Just (AddPlayer model.newPlayerName)
-            , label = el [ centerX ] <| text "+"
-            }
-        , button
-            [ width <| fillPortion 2
-            , height fill
-            ]
-            { onPress = Just Reset
-            , label = el [ centerX ] <| text "Reset"
+            , label = el [ centerX ] <| (Filled.add 32 (Color <| Color.rgb255 96 181 204) |> Element.html)
             }
         ]
 
 
-viewCountPanel : Model -> Element Msg
-viewCountPanel model =
+viewCountPanel : Accent -> Model -> Element Msg
+viewCountPanel accent model =
     column
         [ width fill
         , height fill
@@ -287,48 +398,41 @@ viewCountPanel model =
             , height <| fillPortion 1
             ]
           <|
-            viewCountModes model
+            viewCountModes accent model
         ]
 
 
-viewCountModes : Model -> Element Msg
-viewCountModes model =
+viewCountModes : Accent -> Model -> Element Msg
+viewCountModes accent model =
     row
         [ width fill
         , height fill
-        , Element.explain Debug.todo
+        , Border.solid
+        , Border.widthEach { left = 0, right = 0, top = 4, bottom = 0 }
+        , Border.color accent.border
         ]
-        [ el
-            [ width <| fillPortion 1
-            , height fill
-            ]
-          <|
-            text "Life"
-        , el
-            [ width <| fillPortion 1
-            , height fill
-            ]
-          <|
-            text "Poison"
-        , el
-            [ width <| fillPortion 1
-            , height fill
-            ]
-          <|
-            text "Cmdr"
-        , el
-            [ width <| fillPortion 1
-            , height fill
-            ]
-          <|
-            text "Mana"
-        , el
-            [ width <| fillPortion 1
-            , height fill
-            ]
-          <|
-            text "Custom"
+        [ viewCountMode Icons.health <| SetMode Health
+        , viewCountMode Icons.poison <| SetMode Poison
+        , viewCountMode Icons.commander <| SetMode Commander
+        , viewCountMode Icons.mana <| SetMode Mana
+        , viewCountMode Icons.counters <| SetMode Custom
         ]
+
+
+viewCountMode : Svg Msg -> Msg -> Element Msg
+viewCountMode svg action =
+    button
+        [ width <| fillPortion 1
+        , height fill
+        ]
+        { onPress = Just action
+        , label =
+            el
+                [ centerX, centerY ]
+            <|
+                Element.html <|
+                    svg
+        }
 
 
 lifeCounterTheme : Counter.Theme
@@ -353,96 +457,3 @@ viewLifeCounter =
 
 viewPoisonCounter =
     viewCounterPanel poisonCounterTheme
-
-
-viewResetButton : Element Msg
-viewResetButton =
-    button []
-        { onPress = Just Reset
-        , label = text "Reset"
-        }
-
-
-viewNewPlayerInput : Model -> Element Msg
-viewNewPlayerInput model =
-    column
-        [ paddingXY 10 10 ]
-        [ Element.Input.text []
-            { onChange = UpdateNewPlayerName
-            , text = model.newPlayerName
-            , placeholder = Just (placeholder [] <| text "Name")
-            , label = labelHidden "Name"
-            }
-        , button
-            [ centerX
-            , paddingXY 10 10
-            ]
-            { onPress = Just (AddPlayer model.newPlayerName)
-            , label = text "Add"
-            }
-        ]
-
-
-viewPlayerPanel : Model -> Player -> Element Msg
-viewPlayerPanel model player =
-    if model.display == LifePanel then
-        viewLifeCounter model.selectedPlayer UpdateLife player.name player.lifeLog
-
-    else
-        viewPoisonCounter model.selectedPlayer UpdatePoison player.name player.poisonLog
-
-
-viewPlayerPanelDefault : Element Msg
-viewPlayerPanelDefault =
-    el
-        [ paddingXY 20 20
-        , Background.color (rgb 0.9 0.9 0.9)
-        ]
-    <|
-        text "No players"
-
-
-viewPlayerColumn : Model -> Element Msg
-viewPlayerColumn model =
-    column
-        [ alignTop
-        , height fill
-        ]
-        [ viewPlayerList model
-        , viewNewPlayerInput model
-        ]
-
-
-viewPlayerList : Model -> Element Msg
-viewPlayerList model =
-    if List.isEmpty model.players then
-        viewPlayerListDefault
-
-    else
-        column
-            [ alignTop ]
-        <|
-            List.indexedMap viewPlayerListRow model.players
-
-
-viewPlayerListDefault : Element Msg
-viewPlayerListDefault =
-    el
-        [ paddingXY 20 20
-        , height (px 200)
-        ]
-    <|
-        text "No players"
-
-
-viewPlayerListRow : Int -> Player -> Element Msg
-viewPlayerListRow id player =
-    button [ width fill ]
-        { onPress = Just (SelectPlayer id)
-        , label =
-            row
-                [ width fill, paddingXY 20 10 ]
-                [ text player.name
-                , el [ alignRight ] (text (String.fromInt (Log.current player.lifeLog)))
-                ]
-        }
