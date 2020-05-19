@@ -11803,8 +11803,8 @@ var $author$project$Icons$commander = A2(
 			$elm$svg$Svg$Attributes$id('svg8'),
 			$elm$svg$Svg$Attributes$version('1.1'),
 			$elm$svg$Svg$Attributes$viewBox('0 0 142.30072 153.80157'),
-			$elm$svg$Svg$Attributes$height('32'),
-			$elm$svg$Svg$Attributes$width('32')
+			$elm$svg$Svg$Attributes$height('64'),
+			$elm$svg$Svg$Attributes$width('64')
 		]),
 	_List_fromArray(
 		[
@@ -11852,8 +11852,8 @@ var $author$project$Icons$counters = A2(
 			$elm$svg$Svg$Attributes$id('svg8'),
 			$elm$svg$Svg$Attributes$version('1.1'),
 			$elm$svg$Svg$Attributes$viewBox('0 0 158.75 158.75'),
-			$elm$svg$Svg$Attributes$height('32'),
-			$elm$svg$Svg$Attributes$width('32')
+			$elm$svg$Svg$Attributes$height('64'),
+			$elm$svg$Svg$Attributes$width('64')
 		]),
 	_List_fromArray(
 		[
@@ -11957,8 +11957,8 @@ var $author$project$Icons$health = A2(
 			$elm$svg$Svg$Attributes$id('svg8'),
 			$elm$svg$Svg$Attributes$version('1.1'),
 			$elm$svg$Svg$Attributes$viewBox('0 0 345.26889 345.2749'),
-			$elm$svg$Svg$Attributes$height('32'),
-			$elm$svg$Svg$Attributes$width('32')
+			$elm$svg$Svg$Attributes$height('64'),
+			$elm$svg$Svg$Attributes$width('64')
 		]),
 	_List_fromArray(
 		[
@@ -12082,8 +12082,8 @@ var $author$project$Icons$mana = A2(
 			$elm$svg$Svg$Attributes$id('svg8'),
 			$elm$svg$Svg$Attributes$version('1.1'),
 			$elm$svg$Svg$Attributes$viewBox('0 0 513.10925 482.95688'),
-			$elm$svg$Svg$Attributes$height('32'),
-			$elm$svg$Svg$Attributes$width('32')
+			$elm$svg$Svg$Attributes$height('64'),
+			$elm$svg$Svg$Attributes$width('64')
 		]),
 	_List_fromArray(
 		[
@@ -12389,8 +12389,8 @@ var $author$project$Icons$poison = A2(
 			$elm$svg$Svg$Attributes$id('svg8'),
 			$elm$svg$Svg$Attributes$version('1.1'),
 			$elm$svg$Svg$Attributes$viewBox('0 0 215.84996 315.42974'),
-			$elm$svg$Svg$Attributes$height('32'),
-			$elm$svg$Svg$Attributes$width('32')
+			$elm$svg$Svg$Attributes$height('64'),
+			$elm$svg$Svg$Attributes$width('64')
 		]),
 	_List_fromArray(
 		[
@@ -12652,6 +12652,33 @@ var $mdgriffith$elm_ui$Internal$Model$CenterY = 1;
 var $mdgriffith$elm_ui$Element$centerY = $mdgriffith$elm_ui$Internal$Model$AlignY(1);
 var $mdgriffith$elm_ui$Internal$Model$unstyled = A2($elm$core$Basics$composeL, $mdgriffith$elm_ui$Internal$Model$Unstyled, $elm$core$Basics$always);
 var $mdgriffith$elm_ui$Element$html = $mdgriffith$elm_ui$Internal$Model$unstyled;
+var $mdgriffith$elm_ui$Internal$Model$PaddingStyle = F5(
+	function (a, b, c, d, e) {
+		return {$: 7, a: a, b: b, c: c, d: d, e: e};
+	});
+var $mdgriffith$elm_ui$Internal$Flag$padding = $mdgriffith$elm_ui$Internal$Flag$flag(2);
+var $mdgriffith$elm_ui$Element$paddingXY = F2(
+	function (x, y) {
+		return _Utils_eq(x, y) ? A2(
+			$mdgriffith$elm_ui$Internal$Model$StyleClass,
+			$mdgriffith$elm_ui$Internal$Flag$padding,
+			A5(
+				$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
+				'p-' + $elm$core$String$fromInt(x),
+				x,
+				x,
+				x,
+				x)) : A2(
+			$mdgriffith$elm_ui$Internal$Model$StyleClass,
+			$mdgriffith$elm_ui$Internal$Flag$padding,
+			A5(
+				$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
+				'p-' + ($elm$core$String$fromInt(x) + ('-' + $elm$core$String$fromInt(y))),
+				y,
+				x,
+				y,
+				x));
+	});
 var $author$project$Main$viewCountMode = F2(
 	function (svg, action) {
 		return A2(
@@ -12660,7 +12687,8 @@ var $author$project$Main$viewCountMode = F2(
 				[
 					$mdgriffith$elm_ui$Element$width(
 					$mdgriffith$elm_ui$Element$fillPortion(1)),
-					$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill)
+					$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
+					A2($mdgriffith$elm_ui$Element$paddingXY, 25, 25)
 				]),
 			{
 				aQ: A2(
@@ -12725,7 +12753,7 @@ var $author$project$Main$viewCountModes = function (accent) {
 				$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
 				$mdgriffith$elm_ui$Element$Border$solid,
 				$mdgriffith$elm_ui$Element$Border$widthEach(
-				{aK: 0, aR: 0, aX: 0, a1: 4}),
+				{aK: 0, aR: 0, aX: 0, a1: 8}),
 				$mdgriffith$elm_ui$Element$Border$color(accent.o)
 			]),
 		_List_fromArray(
@@ -13000,6 +13028,12 @@ var $mdgriffith$elm_ui$Element$Input$Placeholder = F2(
 		return {$: 0, a: a, b: b};
 	});
 var $mdgriffith$elm_ui$Element$Input$placeholder = $mdgriffith$elm_ui$Element$Input$Placeholder;
+var $mdgriffith$elm_ui$Element$Font$size = function (i) {
+	return A2(
+		$mdgriffith$elm_ui$Internal$Model$StyleClass,
+		$mdgriffith$elm_ui$Internal$Flag$fontSize,
+		$mdgriffith$elm_ui$Internal$Model$FontSize(i));
+};
 var $mdgriffith$elm_ui$Element$Input$TextInputNode = function (a) {
 	return {$: 0, a: a};
 };
@@ -13143,33 +13177,6 @@ var $mdgriffith$elm_ui$Element$Background$color = function (clr) {
 			clr));
 };
 var $mdgriffith$elm_ui$Element$Input$darkGrey = A3($mdgriffith$elm_ui$Element$rgb, 186 / 255, 189 / 255, 182 / 255);
-var $mdgriffith$elm_ui$Internal$Model$PaddingStyle = F5(
-	function (a, b, c, d, e) {
-		return {$: 7, a: a, b: b, c: c, d: d, e: e};
-	});
-var $mdgriffith$elm_ui$Internal$Flag$padding = $mdgriffith$elm_ui$Internal$Flag$flag(2);
-var $mdgriffith$elm_ui$Element$paddingXY = F2(
-	function (x, y) {
-		return _Utils_eq(x, y) ? A2(
-			$mdgriffith$elm_ui$Internal$Model$StyleClass,
-			$mdgriffith$elm_ui$Internal$Flag$padding,
-			A5(
-				$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
-				'p-' + $elm$core$String$fromInt(x),
-				x,
-				x,
-				x,
-				x)) : A2(
-			$mdgriffith$elm_ui$Internal$Model$StyleClass,
-			$mdgriffith$elm_ui$Internal$Flag$padding,
-			A5(
-				$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
-				'p-' + ($elm$core$String$fromInt(x) + ('-' + $elm$core$String$fromInt(y))),
-				y,
-				x,
-				y,
-				x));
-	});
 var $mdgriffith$elm_ui$Element$Input$defaultTextPadding = A2($mdgriffith$elm_ui$Element$paddingXY, 12, 12);
 var $mdgriffith$elm_ui$Internal$Model$SpacingStyle = F3(
 	function (a, b, c) {
@@ -13914,7 +13921,8 @@ var $author$project$Main$viewNewPlayerWidget = F2(
 				[
 					$mdgriffith$elm_ui$Element$Border$color(accent.o),
 					$mdgriffith$elm_ui$Element$Border$widthEach(
-					{aK: 4, aR: 2, aX: 2, a1: 2}),
+					{aK: 8, aR: 4, aX: 4, a1: 4}),
+					A2($mdgriffith$elm_ui$Element$paddingXY, 25, 25),
 					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
 				]),
 			_List_fromArray(
@@ -13925,6 +13933,7 @@ var $author$project$Main$viewNewPlayerWidget = F2(
 						[
 							$mdgriffith$elm_ui$Element$Border$color(
 							A3($mdgriffith$elm_ui$Element$rgb, 1, 1, 1)),
+							$mdgriffith$elm_ui$Element$Font$size(48),
 							$mdgriffith$elm_ui$Element$htmlAttribute(
 							$elm$html$Html$Attributes$id(
 								'player-' + $elm$core$String$fromInt(model.ai)))
@@ -13953,7 +13962,8 @@ var $author$project$Main$viewPlayerNameWidget = F2(
 				[
 					$mdgriffith$elm_ui$Element$Border$color(accent.o),
 					$mdgriffith$elm_ui$Element$Border$widthEach(
-					{aK: 4, aR: 2, aX: 2, a1: 2}),
+					{aK: 8, aR: 4, aX: 4, a1: 4}),
+					A2($mdgriffith$elm_ui$Element$paddingXY, 25, 25),
 					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
 				]),
 			_List_fromArray(
@@ -13964,6 +13974,7 @@ var $author$project$Main$viewPlayerNameWidget = F2(
 						[
 							$mdgriffith$elm_ui$Element$Border$color(
 							A3($mdgriffith$elm_ui$Element$rgb, 1, 1, 1)),
+							$mdgriffith$elm_ui$Element$Font$size(48),
 							$mdgriffith$elm_ui$Element$htmlAttribute(
 							$elm$html$Html$Attributes$id(
 								'player-' + $elm$core$String$fromInt(playerInfo.U)))
@@ -13984,6 +13995,7 @@ var $author$project$Main$viewPlayerNameWidget = F2(
 					$mdgriffith$elm_ui$Element$el,
 					_List_fromArray(
 						[
+							$mdgriffith$elm_ui$Element$Font$size(48),
 							A2($mdgriffith$elm_ui$Element$paddingXY, 10, 10)
 						]),
 					$mdgriffith$elm_ui$Element$text(
@@ -14069,7 +14081,7 @@ var $author$project$Main$viewAccented = F2(
 					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
 					$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
 					$mdgriffith$elm_ui$Element$Border$solid,
-					$mdgriffith$elm_ui$Element$Border$width(4),
+					$mdgriffith$elm_ui$Element$Border$width(8),
 					$mdgriffith$elm_ui$Element$Border$color(accent.o),
 					$mdgriffith$elm_ui$Element$Border$rounded(8)
 				]),
