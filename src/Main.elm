@@ -1,19 +1,18 @@
 module Main exposing (Model, init, main)
 
 import Browser
-import Color
+import Browser.Dom as Dom
 import Counter exposing (viewCounterPanel)
 import Dict exposing (Dict)
-import Element exposing (Color, Element, alignRight, centerX, centerY, column, el, fill, fillPortion, height, paddingXY, px, rgb, rgb255, row, text, width)
-import Element.Background as Background
+import Element exposing (Color, Element, centerX, centerY, column, el, fill, fillPortion, height, htmlAttribute, paddingXY, rgb, rgb255, row, text, width)
 import Element.Border as Border
 import Element.Input exposing (button, labelHidden, placeholder)
 import Html exposing (Html)
+import Html.Attributes
 import Icons
 import Log exposing (Diff, Log, createLog, update)
-import Material.Icons as Filled
-import Material.Icons.Types exposing (Coloring(..))
 import Svg exposing (Svg)
+import Task
 
 
 main =
@@ -44,6 +43,7 @@ type alias PlayerInfo =
     , name : String
     , lifeLog : Log
     , poisonLog : Log
+    , editing : Bool
     }
 
 
@@ -68,7 +68,7 @@ type alias Accent =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { players = [ 0 ]
-      , playerInfo = Dict.fromList [ ( 0, createPlayer ( 0, "Player 1" ) ) ]
+      , playerInfo = Dict.fromList [ ( 0, createPlayer ( 0, "Player 0" ) ) ]
       , nextPlayerId = 1
       , selectedPlayer = 0
       , newPlayerName = ""
@@ -85,6 +85,7 @@ createPlayer ( id, name ) =
     , name = name
     , lifeLog = createLog 40
     , poisonLog = createLog 0
+    , editing = True
     }
 
 
@@ -93,8 +94,10 @@ createPlayer ( id, name ) =
 
 
 type Msg
-    = Reset
+    = Noop
+    | Reset
     | UpdateNewPlayerName String
+    | EditPlayerName PlayerId String
     | AddPlayer String
     | SelectPlayer Int
     | TogglePanel
@@ -106,6 +109,9 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        Noop ->
+            ( model, Cmd.none )
+
         Reset ->
             ( { model | playerInfo = Dict.map (\id player -> createPlayer ( id, player.name )) model.playerInfo }
             , Cmd.none
@@ -159,7 +165,7 @@ update msg model =
                 , nextPlayerId = id + 1
                 , newPlayerName = ""
               }
-            , Cmd.none
+            , Task.attempt (always Noop) (Dom.focus ("player-" ++ String.fromInt id))
             )
 
         SelectPlayer id ->
@@ -173,6 +179,14 @@ update msg model =
 
         SetMode mode ->
             ( { model | counterMode = mode }, Cmd.none )
+
+        EditPlayerName id name ->
+            let
+                updatedPlayerInfo = Dict.update id (Maybe.map (\p -> { p | name = name })) model.playerInfo
+            in
+            ( { model | playerInfo = updatedPlayerInfo }
+            , Cmd.none
+            )
 
 
 subscriptions : Model -> Sub Msg
@@ -249,7 +263,7 @@ viewAccented accent model =
                 , height <| fillPortion 1
                 ]
               <|
-                viewPlayerNamesPanel model
+                viewNamesPanel accent model
             , el
                 [ width fill
                 , height <| fillPortion 2
@@ -269,107 +283,109 @@ playerStatCurrentPoison player =
     String.fromInt <| Log.current player.poisonLog
 
 
-viewPlayerNamesPanel : Model -> Element Msg
-viewPlayerNamesPanel model =
+listUnwrapMaybe : List (Maybe a) -> Maybe (List a)
+listUnwrapMaybe listMaybes =
+    case listMaybes of
+        (Just head) :: tail ->
+            let
+                maybeTail = listUnwrapMaybe tail
+            in
+                Maybe.map (\t -> head :: t) maybeTail
+
+        [] -> Just []
+
+        _ -> Nothing
+
+
+type NameBlock
+    = Player PlayerInfo
+    | NewPlayer
+
+
+viewNamesPanel : Accent -> Model -> Element Msg
+viewNamesPanel accent model =
     let
-        ( left, right ) =
+        nameBlockMaybes : List (Maybe NameBlock)
+        nameBlockMaybes =
             model.players
                 |> List.map (\id -> Dict.get id model.playerInfo)
-                |> List.indexedMap (\index mpInfo -> ( index, mpInfo ))
-                |> List.partition (\( i, _ ) -> modBy 2 i == 0)
-
-        stat =
-            case model.counterMode of
-                Poison ->
-                    playerStatCurrentPoison
-
-                _ ->
-                    playerStatCurrentLife
+                |> List.map (\maybePInfo -> Maybe.map (\pInfo -> Player pInfo) maybePInfo)
+        maybeNameBlocks : Maybe (List NameBlock)
+        maybeNameBlocks = listUnwrapMaybe nameBlockMaybes
     in
-    column
-        [ width fill
-        , height fill
-        ]
-        [ row
-            [ width fill
-            , height <| fillPortion 3
-            ]
-            [ column
-                -- Even indices in left column
-                [ width <| fillPortion 1
-                , height fill
+        case maybeNameBlocks of
+            Nothing -> el [ centerX, centerY ] <| text "Error displaying player info"
+
+            Just nameBlocks ->
+                let
+                    blocks = nameBlocks ++ [ NewPlayer ]
+                    ( leftCol, rightCol ) =
+                        blocks
+                        |> List.indexedMap (\i block -> ( i, block ))
+                        |> List.partition (\( i, _ ) -> modBy 2 i == 0)
+                in
+                    row
+                        [ width fill
+                        , height fill
+                        ]
+                        [ column
+                            [ width <| fillPortion 1
+                            , height fill
+                            ]
+                          <|
+                            List.map (\( _, block ) -> viewNameWidget accent model block []) leftCol
+                        , column
+                            [ width <| fillPortion 1
+                            , height fill
+                            ]
+                          <|
+                            List.map (\( _, block ) -> viewNameWidget accent model block []) rightCol
+                        ]
+
+
+viewNameWidget : Accent -> Model -> NameBlock -> List (Element.Attribute Msg) -> Element Msg
+viewNameWidget accent model block attrs =
+    case block of
+        Player playerInfo ->
+            row
+                ((++)
+                    [ Border.color accent.border
+                    , Border.width 2
+                    ]
+                    attrs
+                )
+                [ Element.Input.text
+                    [ Border.color <| rgb 1 1 1
+                    , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt playerInfo.id)
+                    ]
+                    { onChange = EditPlayerName playerInfo.id
+                    , text = playerInfo.name
+                    , placeholder = Just <| placeholder [] <| text <| "Player " ++ String.fromInt playerInfo.id
+                    , label = labelHidden <| "Edit player " ++ (String.fromInt playerInfo.id) ++ " name"
+                    }
+                , el
+                    [ paddingXY 10 10 ]
+                    <| text <| String.fromInt <| Log.current playerInfo.lifeLog
                 ]
-              <|
-                List.map (\( _, maybeP ) -> Maybe.withDefault viewPlayerNameError <| Maybe.map (viewPlayerName model stat) maybeP) left
-            , column
-                -- Odd indices in right column
-                [ width <| fillPortion 1
-                , height fill
+
+        NewPlayer ->
+            row
+                ((++)
+                    [ Border.color accent.border
+                    , Border.width 2
+                    ]
+                    attrs
+                )
+                [ Element.Input.text
+                    [ Border.color <| rgb 1 1 1
+                    , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt model.nextPlayerId)
+                    ]
+                    { onChange = AddPlayer
+                    , text = ""
+                    , placeholder = Just <| placeholder [] <| text "New player"
+                    , label = labelHidden "New player name"
+                    }
                 ]
-              <|
-                List.map (\( _, maybeP ) -> Maybe.withDefault viewPlayerNameError <| Maybe.map (viewPlayerName model stat) maybeP) right
-            ]
-        , el
-            [ width fill
-            , height <| fillPortion 1
-            ]
-          <|
-            viewNewPlayer model
-        ]
-
-
-viewPlayerName : Model -> (PlayerInfo -> String) -> PlayerInfo -> Element Msg
-viewPlayerName model playerStat playerInfo =
-    row
-        [ width fill
-        , Border.solid
-        , Border.widthEach { top = 2, left = 2, right = 1, bottom = 1 }
-        ]
-        [ el
-            [ paddingXY 10 10 ]
-          <|
-            text playerInfo.name
-        , el
-            [ alignRight, paddingXY 10 10 ]
-          <|
-            text <|
-                playerStat playerInfo
-        ]
-
-
-viewPlayerNameError : Element Msg
-viewPlayerNameError =
-    el
-        [ width fill
-        , height fill
-        ]
-    <|
-        text "Error"
-
-
-viewNewPlayer : Model -> Element Msg
-viewNewPlayer model =
-    row
-        [ width fill
-        , height fill
-        ]
-        [ Element.Input.text
-            [ width <| fillPortion 5
-            , height fill
-            ]
-            { onChange = UpdateNewPlayerName
-            , text = model.newPlayerName
-            , placeholder = Just <| placeholder [] <| text "New Player Name"
-            , label = labelHidden "New Player Name"
-            }
-        , button
-            [ width <| fillPortion 1
-            , height fill
-            ]
-            { onPress = Just (AddPlayer model.newPlayerName)
-            , label = el [ centerX ] <| (Filled.add 32 (Color <| Color.rgb255 96 181 204) |> Element.html)
-            }
-        ]
 
 
 viewCountPanel : Accent -> Model -> Element Msg
@@ -398,12 +414,12 @@ viewCountPanel accent model =
             , height <| fillPortion 1
             ]
           <|
-            viewCountModes accent model
+            viewCountModes accent
         ]
 
 
-viewCountModes : Accent -> Model -> Element Msg
-viewCountModes accent model =
+viewCountModes : Accent -> Element Msg
+viewCountModes accent =
     row
         [ width fill
         , height fill
