@@ -5,6 +5,7 @@ import Browser.Dom as Dom
 import Dict exposing (Dict)
 import Element exposing (Color, Element, centerX, centerY, column, el, fill, fillPortion, height, htmlAttribute, paddingXY, rgb, rgb255, row, text, width)
 import Element.Border as Border
+import Element.Font as Font
 import Element.Input exposing (button, labelHidden, placeholder)
 import Html exposing (Html)
 import Html.Attributes
@@ -249,7 +250,7 @@ viewAccented accent model =
         [ width fill
         , height fill
         , Border.solid
-        , Border.width 4
+        , Border.width 8
         , Border.color accent.border
         , Border.rounded 8
         ]
@@ -337,11 +338,13 @@ viewPlayerNameWidget : Accent -> PlayerInfo  -> Element Msg
 viewPlayerNameWidget accent playerInfo =
     row
         [ Border.color accent.border
-        , Border.widthEach { left = 2, right = 2, top = 2, bottom = 4 }
+        , Border.widthEach { left = 4, right = 4, top = 4, bottom = 8 }
+        , paddingXY 25 25
         , width fill
         ]
         [ Element.Input.text
             [ Border.color <| rgb 1 1 1
+            , Font.size 48
             , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt playerInfo.id)
             ]
             { onChange = EditPlayerName playerInfo.id
@@ -350,7 +353,9 @@ viewPlayerNameWidget accent playerInfo =
             , label = labelHidden <| "Edit player " ++ (String.fromInt playerInfo.id) ++ " name"
             }
         , el
-            [ paddingXY 10 10 ]
+            [ Font.size 48
+            , paddingXY 10 10
+            ]
             <| text <| String.fromInt <| Log.current playerInfo.lifeLog
         ]
 
@@ -359,11 +364,13 @@ viewNewPlayerWidget : Accent -> Model -> Element Msg
 viewNewPlayerWidget accent model =
     row
         [ Border.color accent.border
-        , Border.widthEach { left = 2, right = 2, top = 2, bottom = 4 }
+        , Border.widthEach { left = 4, right = 4, top = 4, bottom = 8 }
+        , paddingXY 25 25
         , width fill
         ]
         [ Element.Input.text
             [ Border.color <| rgb 1 1 1
+            , Font.size 48
             , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt model.nextPlayerId)
             ]
             { onChange = AddPlayer
@@ -410,7 +417,7 @@ viewCountModes accent =
         [ width fill
         , height fill
         , Border.solid
-        , Border.widthEach { left = 0, right = 0, top = 4, bottom = 0 }
+        , Border.widthEach { left = 0, right = 0, top = 8, bottom = 0 }
         , Border.color accent.border
         ]
         [ viewCountMode Icons.health <| SetMode Health
@@ -426,6 +433,7 @@ viewCountMode svg action =
     button
         [ width <| fillPortion 1
         , height fill
+        , paddingXY 25 25
         ]
         { onPress = Just action
         , label =

@@ -11,8 +11,8 @@ health =
         [ id "svg8"
         , version "1.1"
         , viewBox "0 0 345.26889 345.2749"
-        , Svg.Attributes.height "32"
-        , Svg.Attributes.width "32"
+        , Svg.Attributes.height "64"
+        , Svg.Attributes.width "64"
         ]
         [ defs
             [ id "defs2" ]
@@ -87,8 +87,8 @@ poison =
         [ id "svg8"
         , version "1.1"
         , viewBox "0 0 215.84996 315.42974"
-        , Svg.Attributes.height "32"
-        , Svg.Attributes.width "32"
+        , Svg.Attributes.height "64"
+        , Svg.Attributes.width "64"
         ]
         [ defs
             [ id "defs2" ]
@@ -163,8 +163,8 @@ commander =
         [ id "svg8"
         , version "1.1"
         , viewBox "0 0 142.30072 153.80157"
-        , height "32"
-        , width "32"
+        , height "64"
+        , width "64"
         ]
         [ defs
             [ id "defs2" ]
@@ -192,8 +192,8 @@ mana =
         [ id "svg8"
         , version "1.1"
         , viewBox "0 0 513.10925 482.95688"
-        , Svg.Attributes.height "32"
-        , Svg.Attributes.width "32"
+        , Svg.Attributes.height "64"
+        , Svg.Attributes.width "64"
         ]
         [ defs
             [ id "defs2" ]
@@ -370,8 +370,8 @@ counters =
         [ id "svg8"
         , version "1.1"
         , viewBox "0 0 158.75 158.75"
-        , height "32"
-        , width "32"
+        , height "64"
+        , width "64"
         ]
         [ defs
             [ id "defs2" ]
