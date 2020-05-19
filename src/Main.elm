@@ -2,7 +2,6 @@ module Main exposing (Model, init, main)
 
 import Browser
 import Browser.Dom as Dom
-import Counter exposing (viewCounterPanel)
 import Dict exposing (Dict)
 import Element exposing (Color, Element, centerX, centerY, column, el, fill, fillPortion, height, htmlAttribute, paddingXY, rgb, rgb255, row, text, width)
 import Element.Border as Border
@@ -10,6 +9,7 @@ import Element.Input exposing (button, labelHidden, placeholder)
 import Html exposing (Html)
 import Html.Attributes
 import Icons
+import List.Extra exposing (greedyGroupsOf)
 import Log exposing (Diff, Log, createLog, update)
 import Svg exposing (Svg)
 import Task
@@ -273,16 +273,6 @@ viewAccented accent model =
             ]
 
 
-playerStatCurrentLife : PlayerInfo -> String
-playerStatCurrentLife player =
-    String.fromInt <| Log.current player.lifeLog
-
-
-playerStatCurrentPoison : PlayerInfo -> String
-playerStatCurrentPoison player =
-    String.fromInt <| Log.current player.poisonLog
-
-
 listUnwrapMaybe : List (Maybe a) -> Maybe (List a)
 listUnwrapMaybe listMaybes =
     case listMaybes of
@@ -319,73 +309,69 @@ viewNamesPanel accent model =
             Just nameBlocks ->
                 let
                     blocks = nameBlocks ++ [ NewPlayer ]
-                    ( leftCol, rightCol ) =
-                        blocks
-                        |> List.indexedMap (\i block -> ( i, block ))
-                        |> List.partition (\( i, _ ) -> modBy 2 i == 0)
+                    nameBlockGroups = greedyGroupsOf 2 blocks
                 in
-                    row
-                        [ width fill
-                        , height fill
-                        ]
-                        [ column
-                            [ width <| fillPortion 1
-                            , height fill
-                            ]
-                          <|
-                            List.map (\( _, block ) -> viewNameWidget accent model block []) leftCol
-                        , column
-                            [ width <| fillPortion 1
-                            , height fill
-                            ]
-                          <|
-                            List.map (\( _, block ) -> viewNameWidget accent model block []) rightCol
-                        ]
+                    column
+                        [ width fill, height fill ]
+                    <|
+                        List.map (viewNamesRow accent model) nameBlockGroups
 
 
-viewNameWidget : Accent -> Model -> NameBlock -> List (Element.Attribute Msg) -> Element Msg
-viewNameWidget accent model block attrs =
+viewNamesRow : Accent -> Model -> List NameBlock -> Element Msg
+viewNamesRow accent model blocks =
+    row
+        [ width fill ]
+    <|
+        List.map (\block -> viewNameWidget accent model block) blocks
+
+
+viewNameWidget : Accent -> Model -> NameBlock -> Element Msg
+viewNameWidget accent model block =
     case block of
-        Player playerInfo ->
-            row
-                ((++)
-                    [ Border.color accent.border
-                    , Border.width 2
-                    ]
-                    attrs
-                )
-                [ Element.Input.text
-                    [ Border.color <| rgb 1 1 1
-                    , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt playerInfo.id)
-                    ]
-                    { onChange = EditPlayerName playerInfo.id
-                    , text = playerInfo.name
-                    , placeholder = Just <| placeholder [] <| text <| "Player " ++ String.fromInt playerInfo.id
-                    , label = labelHidden <| "Edit player " ++ (String.fromInt playerInfo.id) ++ " name"
-                    }
-                , el
-                    [ paddingXY 10 10 ]
-                    <| text <| String.fromInt <| Log.current playerInfo.lifeLog
-                ]
+        Player playerInfo -> viewPlayerNameWidget accent playerInfo
 
-        NewPlayer ->
-            row
-                ((++)
-                    [ Border.color accent.border
-                    , Border.width 2
-                    ]
-                    attrs
-                )
-                [ Element.Input.text
-                    [ Border.color <| rgb 1 1 1
-                    , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt model.nextPlayerId)
-                    ]
-                    { onChange = AddPlayer
-                    , text = ""
-                    , placeholder = Just <| placeholder [] <| text "New player"
-                    , label = labelHidden "New player name"
-                    }
-                ]
+        NewPlayer -> viewNewPlayerWidget accent model
+
+
+viewPlayerNameWidget : Accent -> PlayerInfo  -> Element Msg
+viewPlayerNameWidget accent playerInfo =
+    row
+        [ Border.color accent.border
+        , Border.widthEach { left = 2, right = 2, top = 2, bottom = 4 }
+        , width fill
+        ]
+        [ Element.Input.text
+            [ Border.color <| rgb 1 1 1
+            , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt playerInfo.id)
+            ]
+            { onChange = EditPlayerName playerInfo.id
+            , text = playerInfo.name
+            , placeholder = Just <| placeholder [] <| text <| "Player " ++ String.fromInt playerInfo.id
+            , label = labelHidden <| "Edit player " ++ (String.fromInt playerInfo.id) ++ " name"
+            }
+        , el
+            [ paddingXY 10 10 ]
+            <| text <| String.fromInt <| Log.current playerInfo.lifeLog
+        ]
+
+
+viewNewPlayerWidget : Accent -> Model -> Element Msg
+viewNewPlayerWidget accent model =
+    row
+        [ Border.color accent.border
+        , Border.widthEach { left = 2, right = 2, top = 2, bottom = 4 }
+        , width fill
+        ]
+        [ Element.Input.text
+            [ Border.color <| rgb 1 1 1
+            , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt model.nextPlayerId)
+            ]
+            { onChange = AddPlayer
+            , text = ""
+            , placeholder = Just <| placeholder [] <| text "New player"
+            , label = labelHidden "New player name"
+            }
+        ]
 
 
 viewCountPanel : Accent -> Model -> Element Msg
@@ -449,27 +435,3 @@ viewCountMode svg action =
                 Element.html <|
                     svg
         }
-
-
-lifeCounterTheme : Counter.Theme
-lifeCounterTheme =
-    { bg = rgb 0.9 0.9 0.9
-    , buttonBg = rgb 0.9 0.3 0.3
-    , buttonBgShadow = rgb 1.0 0.3 0.3
-    }
-
-
-poisonCounterTheme : Counter.Theme
-poisonCounterTheme =
-    { bg = rgb 0.9 0.9 0.9
-    , buttonBg = rgb 0.3 0.8 0.3
-    , buttonBgShadow = rgb 0.3 0.7 0.3
-    }
-
-
-viewLifeCounter =
-    viewCounterPanel lifeCounterTheme
-
-
-viewPoisonCounter =
-    viewCounterPanel poisonCounterTheme
