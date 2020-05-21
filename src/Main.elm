@@ -2,14 +2,18 @@ module Main exposing (Model, init, main)
 
 import Browser
 import Browser.Dom as Dom
+import Browser.Events exposing (onKeyDown)
+import Counter exposing (Theme, viewCounterPanel)
 import Dict exposing (Dict)
 import Element exposing (Color, Element, centerX, centerY, column, el, fill, fillPortion, height, htmlAttribute, paddingXY, rgb, rgb255, row, text, width)
 import Element.Border as Border
+import Element.Events exposing (onFocus)
 import Element.Font as Font
 import Element.Input exposing (button, labelHidden, placeholder)
 import Html exposing (Html)
 import Html.Attributes
 import Icons
+import Json.Decode as Decode
 import List.Extra exposing (greedyGroupsOf)
 import Log exposing (Diff, Log, createLog, update)
 import Svg exposing (Svg)
@@ -96,6 +100,7 @@ createPlayer ( id, name ) =
 
 type Msg
     = Noop
+    | KeyPress Key
     | Reset
     | UpdateNewPlayerName String
     | EditPlayerName PlayerId String
@@ -112,6 +117,35 @@ update msg model =
     case msg of
         Noop ->
             ( model, Cmd.none )
+
+        KeyPress key ->
+            case ( key, model.counterMode ) of
+                ( ArrowUp, Poison ) ->
+                    update (UpdatePoison model.selectedPlayer 1) model
+
+                ( ArrowDown, Poison ) ->
+                    update (UpdatePoison model.selectedPlayer -1) model
+
+                ( ArrowLeft, Poison ) ->
+                    update (UpdatePoison model.selectedPlayer -5) model
+
+                ( ArrowRight, Poison ) ->
+                    update (UpdatePoison model.selectedPlayer 5) model
+
+                ( ArrowUp, _ ) ->
+                    update (UpdateLife model.selectedPlayer 1) model
+
+                ( ArrowDown, _ ) ->
+                    update (UpdateLife model.selectedPlayer -1) model
+
+                ( ArrowLeft, _ ) ->
+                    update (UpdateLife model.selectedPlayer -5) model
+
+                ( ArrowRight, _ ) ->
+                    update (UpdateLife model.selectedPlayer 5) model
+
+                _ ->
+                    ( model, Cmd.none )
 
         Reset ->
             ( { model | playerInfo = Dict.map (\id player -> createPlayer ( id, player.name )) model.playerInfo }
@@ -163,6 +197,7 @@ update msg model =
             ( { model
                 | playerInfo = Dict.insert id (createPlayer ( id, name )) model.playerInfo
                 , players = model.players ++ [ id ]
+                , selectedPlayer = id
                 , nextPlayerId = id + 1
                 , newPlayerName = ""
               }
@@ -183,16 +218,50 @@ update msg model =
 
         EditPlayerName id name ->
             let
-                updatedPlayerInfo = Dict.update id (Maybe.map (\p -> { p | name = name })) model.playerInfo
+                updatedPlayerInfo =
+                    Dict.update id (Maybe.map (\p -> { p | name = name })) model.playerInfo
             in
             ( { model | playerInfo = updatedPlayerInfo }
             , Cmd.none
             )
 
 
+type Key
+    = ArrowUp
+    | ArrowDown
+    | ArrowLeft
+    | ArrowRight
+    | Other String
+
+
+keyDecoder : Decode.Decoder Msg
+keyDecoder =
+    Decode.map toKey (Decode.field "key" Decode.string)
+
+
+toKey : String -> Msg
+toKey string =
+    KeyPress <|
+        case string of
+            "ArrowUp" ->
+                ArrowUp
+
+            "ArrowDown" ->
+                ArrowDown
+
+            "ArrowLeft" ->
+                ArrowLeft
+
+            "ArrowRight" ->
+                ArrowRight
+
+            other ->
+                Other other
+
+
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.none
+    onKeyDown keyDecoder
 
 
 accentLife : Accent
@@ -269,8 +338,13 @@ viewAccented accent model =
                 [ width fill
                 , height <| fillPortion 2
                 ]
-              <|
-                viewCountPanel accent model
+                (model.players
+                    |> List.drop model.selectedPlayer
+                    |> List.head
+                    |> Maybe.andThen (\id -> Dict.get id model.playerInfo)
+                    |> Maybe.map (viewCountPanel accent model)
+                    |> Maybe.withDefault (text "Error finding player")
+                )
             ]
 
 
@@ -279,13 +353,16 @@ listUnwrapMaybe listMaybes =
     case listMaybes of
         (Just head) :: tail ->
             let
-                maybeTail = listUnwrapMaybe tail
+                maybeTail =
+                    listUnwrapMaybe tail
             in
-                Maybe.map (\t -> head :: t) maybeTail
+            Maybe.map (\t -> head :: t) maybeTail
 
-        [] -> Just []
+        [] ->
+            Just []
 
-        _ -> Nothing
+        _ ->
+            Nothing
 
 
 type NameBlock
@@ -301,21 +378,27 @@ viewNamesPanel accent model =
             model.players
                 |> List.map (\id -> Dict.get id model.playerInfo)
                 |> List.map (\maybePInfo -> Maybe.map (\pInfo -> Player pInfo) maybePInfo)
-        maybeNameBlocks : Maybe (List NameBlock)
-        maybeNameBlocks = listUnwrapMaybe nameBlockMaybes
-    in
-        case maybeNameBlocks of
-            Nothing -> el [ centerX, centerY ] <| text "Error displaying player info"
 
-            Just nameBlocks ->
-                let
-                    blocks = nameBlocks ++ [ NewPlayer ]
-                    nameBlockGroups = greedyGroupsOf 2 blocks
-                in
-                    column
-                        [ width fill, height fill ]
-                    <|
-                        List.map (viewNamesRow accent model) nameBlockGroups
+        maybeNameBlocks : Maybe (List NameBlock)
+        maybeNameBlocks =
+            listUnwrapMaybe nameBlockMaybes
+    in
+    case maybeNameBlocks of
+        Nothing ->
+            el [ centerX, centerY ] <| text "Error displaying player info"
+
+        Just nameBlocks ->
+            let
+                blocks =
+                    nameBlocks ++ [ NewPlayer ]
+
+                nameBlockGroups =
+                    greedyGroupsOf 2 blocks
+            in
+            column
+                [ width fill, height fill ]
+            <|
+                List.map (viewNamesRow accent model) nameBlockGroups
 
 
 viewNamesRow : Accent -> Model -> List NameBlock -> Element Msg
@@ -329,12 +412,14 @@ viewNamesRow accent model blocks =
 viewNameWidget : Accent -> Model -> NameBlock -> Element Msg
 viewNameWidget accent model block =
     case block of
-        Player playerInfo -> viewPlayerNameWidget accent playerInfo
+        Player playerInfo ->
+            viewPlayerNameWidget accent playerInfo
 
-        NewPlayer -> viewNewPlayerWidget accent model
+        NewPlayer ->
+            viewNewPlayerWidget accent model
 
 
-viewPlayerNameWidget : Accent -> PlayerInfo  -> Element Msg
+viewPlayerNameWidget : Accent -> PlayerInfo -> Element Msg
 viewPlayerNameWidget accent playerInfo =
     row
         [ Border.color accent.border
@@ -346,17 +431,21 @@ viewPlayerNameWidget accent playerInfo =
             [ Border.color <| rgb 1 1 1
             , Font.size 48
             , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt playerInfo.id)
+            , onFocus <| SelectPlayer playerInfo.id
             ]
             { onChange = EditPlayerName playerInfo.id
             , text = playerInfo.name
             , placeholder = Just <| placeholder [] <| text <| "Player " ++ String.fromInt playerInfo.id
-            , label = labelHidden <| "Edit player " ++ (String.fromInt playerInfo.id) ++ " name"
+            , label = labelHidden <| "Edit player " ++ String.fromInt playerInfo.id ++ " name"
             }
         , el
             [ Font.size 48
             , paddingXY 10 10
             ]
-            <| text <| String.fromInt <| Log.current playerInfo.lifeLog
+          <|
+            text <|
+                String.fromInt <|
+                    Log.current playerInfo.lifeLog
         ]
 
 
@@ -381,11 +470,28 @@ viewNewPlayerWidget accent model =
         ]
 
 
-viewCountPanel : Accent -> Model -> Element Msg
-viewCountPanel accent model =
+themeHealth : Counter.Theme
+themeHealth =
+    { bg = rgb 0.9 0.9 0.9
+    , buttonBg = rgb 0.9 0.3 0.3
+    , buttonBgShadow = rgb 1.0 0.3 0.3
+    }
+
+
+themePoison : Counter.Theme
+themePoison =
+    { bg = rgb 0.9 0.9 0.9
+    , buttonBg = rgb 0.3 0.8 0.3
+    , buttonBgShadow = rgb 0.3 0.7 0.3
+    }
+
+
+viewCountPanel : Accent -> Model -> PlayerInfo -> Element Msg
+viewCountPanel accent model selectedPlayer =
     column
         [ width fill
         , height fill
+        , Element.explain Debug.todo
         ]
         [ row
             [ width fill
@@ -397,18 +503,83 @@ viewCountPanel accent model =
             [ width fill
             , height <| fillPortion 4
             ]
-            [ el
-                [ centerX ]
-              <|
-                text "Counter"
+            [ viewCounterPanel themeHealth model.selectedPlayer (\id diff -> UpdateLife id diff) selectedPlayer.name selectedPlayer.lifeLog
             ]
         , el
             [ width fill
-            , height <| fillPortion 1
             ]
           <|
             viewCountModes accent
         ]
+
+
+viewCounter : Accent -> Model -> Element Msg
+viewCounter accent model =
+    column
+        [ width fill
+        , height fill
+        , Element.explain Debug.todo
+        ]
+        [ row
+            [ width fill
+            , height <| fillPortion 1
+            ]
+            [ spacer
+            , el
+                [ width <| fillPortion 1
+                , height fill
+                ]
+              <|
+                button
+                    [ centerX, centerY ]
+                    { onPress = Nothing
+                    , label = text "+1"
+                    }
+            , spacer
+            ]
+        , row
+            [ width fill
+            , height <| fillPortion 1
+            ]
+            [ el
+                [ width <| fillPortion 1
+                , height fill
+                ]
+              <|
+                text "four"
+            , spacer
+            , el
+                [ width <| fillPortion 1
+                , height fill
+                ]
+              <|
+                text "six"
+            ]
+        , row
+            [ width fill
+            , height <| fillPortion 1
+            ]
+            [ spacer
+            , el
+                [ width <| fillPortion 1
+                , height fill
+                ]
+              <|
+                el [ centerX, centerY ] <|
+                    text "eight"
+            , spacer
+            ]
+        ]
+
+
+spacer : Element Msg
+spacer =
+    el
+        [ width <| fillPortion 1
+        , height <| fillPortion 1
+        ]
+    <|
+        Element.none
 
 
 viewCountModes : Accent -> Element Msg
