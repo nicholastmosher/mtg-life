@@ -5,17 +5,14 @@ import Browser.Dom as Dom
 import Browser.Events exposing (onKeyDown)
 import Counter exposing (Theme, viewCounterPanel)
 import Dict exposing (Dict)
-import Element exposing (Color, Element, centerX, centerY, column, el, fill, fillPortion, height, htmlAttribute, paddingXY, rgb, rgb255, row, text, width)
+import Element exposing (Color, Element, centerX, centerY, column, el, fill, fillPortion, height, paddingXY, rgb, rgb255, row, text, width)
 import Element.Border as Border
-import Element.Events exposing (onFocus)
-import Element.Font as Font
-import Element.Input exposing (button, labelHidden, placeholder)
+import Element.Input exposing (button)
 import Html exposing (Html)
-import Html.Attributes
 import Icons
 import Json.Decode as Decode
-import List.Extra exposing (greedyGroupsOf)
 import Log exposing (Diff, Log, createLog, update)
+import Badges
 import Svg exposing (Svg)
 import Task
 
@@ -333,7 +330,7 @@ viewAccented accent model =
                 , height <| fillPortion 1
                 ]
               <|
-                viewNamesPanel accent model
+                viewNameBadges accent model
             , el
                 [ width fill
                 , height <| fillPortion 2
@@ -365,109 +362,55 @@ listUnwrapMaybe listMaybes =
             Nothing
 
 
-type NameBlock
-    = Player PlayerInfo
-    | NewPlayer
+namesPanelTheme : Accent -> Badges.Theme
+namesPanelTheme accent =
+    { borderColor = accent.border
+    , borderWidth = 4
+    , nameColor = rgb 0 0 0
+    , statColor = rgb 0 0 0
+    , fontSize = 48
+    }
 
 
-viewNamesPanel : Accent -> Model -> Element Msg
-viewNamesPanel accent model =
+viewNameBadges : Accent -> Model -> Element Msg
+viewNameBadges accent model =
     let
-        nameBlockMaybes : List (Maybe NameBlock)
-        nameBlockMaybes =
-            model.players
-                |> List.map (\id -> Dict.get id model.playerInfo)
-                |> List.map (\maybePInfo -> Maybe.map (\pInfo -> Player pInfo) maybePInfo)
+        theme = namesPanelTheme accent
+        playerMaybes = List.map (\id -> Dict.get id model.playerInfo) model.players
+        maybePlayers = listUnwrapMaybe playerMaybes
+        playerStat : PlayerInfo -> String
+        playerStat player =
+            case model.counterMode of
+                Poison -> String.fromInt <| Log.current player.poisonLog
+                _ -> String.fromInt <| Log.current player.lifeLog
 
-        maybeNameBlocks : Maybe (List NameBlock)
-        maybeNameBlocks =
-            listUnwrapMaybe nameBlockMaybes
+        playerBadge : PlayerInfo -> Badges.ExistingBadge Msg
+        playerBadge player =
+            { id = "player-" ++ String.fromInt player.id
+            , name = player.name
+            , stat = playerStat player
+            , onFocus = SelectPlayer player.id
+            , onChange = EditPlayerName player.id
+            , placeholder = Just ("Player " ++ String.fromInt player.id)
+            , label = "Edit player " ++ (String.fromInt player.id)
+            }
+
+        maybeBadges : Maybe (List (Badges.ExistingBadge Msg))
+        maybeBadges =
+            maybePlayers
+                |> Maybe.map (\players -> List.map playerBadge players)
+
+        newBadge : Badges.NewBadge Msg
+        newBadge =
+            { id = "player-" ++ String.fromInt model.nextPlayerId
+            , onChange = AddPlayer
+            , placeholder = "New Player"
+            , label = "New player name"
+            }
     in
-    case maybeNameBlocks of
-        Nothing ->
-            el [ centerX, centerY ] <| text "Error displaying player info"
-
-        Just nameBlocks ->
-            let
-                blocks =
-                    nameBlocks ++ [ NewPlayer ]
-
-                nameBlockGroups =
-                    greedyGroupsOf 2 blocks
-            in
-            column
-                [ width fill, height fill ]
-            <|
-                List.map (viewNamesRow accent model) nameBlockGroups
-
-
-viewNamesRow : Accent -> Model -> List NameBlock -> Element Msg
-viewNamesRow accent model blocks =
-    row
-        [ width fill ]
-    <|
-        List.map (\block -> viewNameWidget accent model block) blocks
-
-
-viewNameWidget : Accent -> Model -> NameBlock -> Element Msg
-viewNameWidget accent model block =
-    case block of
-        Player playerInfo ->
-            viewPlayerNameWidget accent playerInfo
-
-        NewPlayer ->
-            viewNewPlayerWidget accent model
-
-
-viewPlayerNameWidget : Accent -> PlayerInfo -> Element Msg
-viewPlayerNameWidget accent playerInfo =
-    row
-        [ Border.color accent.border
-        , Border.widthEach { left = 4, right = 4, top = 4, bottom = 8 }
-        , paddingXY 25 25
-        , width fill
-        ]
-        [ Element.Input.text
-            [ Border.color <| rgb 1 1 1
-            , Font.size 48
-            , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt playerInfo.id)
-            , onFocus <| SelectPlayer playerInfo.id
-            ]
-            { onChange = EditPlayerName playerInfo.id
-            , text = playerInfo.name
-            , placeholder = Just <| placeholder [] <| text <| "Player " ++ String.fromInt playerInfo.id
-            , label = labelHidden <| "Edit player " ++ String.fromInt playerInfo.id ++ " name"
-            }
-        , el
-            [ Font.size 48
-            , paddingXY 10 10
-            ]
-          <|
-            text <|
-                String.fromInt <|
-                    Log.current playerInfo.lifeLog
-        ]
-
-
-viewNewPlayerWidget : Accent -> Model -> Element Msg
-viewNewPlayerWidget accent model =
-    row
-        [ Border.color accent.border
-        , Border.widthEach { left = 4, right = 4, top = 4, bottom = 8 }
-        , paddingXY 25 25
-        , width fill
-        ]
-        [ Element.Input.text
-            [ Border.color <| rgb 1 1 1
-            , Font.size 48
-            , htmlAttribute <| Html.Attributes.id ("player-" ++ String.fromInt model.nextPlayerId)
-            ]
-            { onChange = AddPlayer
-            , text = ""
-            , placeholder = Just <| placeholder [] <| text "New player"
-            , label = labelHidden "New player name"
-            }
-        ]
+        maybeBadges
+            |> Maybe.map (\badges -> Badges.viewBadgeColumns theme 3 badges newBadge)
+            |> Maybe.withDefault (text "Error displaying player badges")
 
 
 themeHealth : Counter.Theme
