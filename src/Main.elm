@@ -3,7 +3,7 @@ module Main exposing (Model, init, main)
 import Browser
 import Browser.Dom as Dom
 import Browser.Events exposing (onKeyDown)
-import Counter exposing (Theme, viewCounterPanel)
+import Counter exposing (Theme, viewBasicCounter)
 import Dict exposing (Dict)
 import Element exposing (Color, Element, centerX, centerY, column, el, fill, fillPortion, height, paddingXY, rgb, rgb255, row, text, width)
 import Element.Border as Border
@@ -31,7 +31,6 @@ type alias Model =
     , nextPlayerId : PlayerId
     , selectedPlayer : PlayerId
     , newPlayerName : String
-    , display : PanelDisplay
     , counterMode : CounterMode
     }
 
@@ -43,15 +42,11 @@ type alias PlayerId =
 type alias PlayerInfo =
     { id : PlayerId
     , name : String
+    , commanderName : Maybe String
     , lifeLog : Log
     , poisonLog : Log
     , editing : Bool
     }
-
-
-type PanelDisplay
-    = LifePanel
-    | PoisonPanel
 
 
 type CounterMode
@@ -74,7 +69,6 @@ init _ =
       , nextPlayerId = 1
       , selectedPlayer = 0
       , newPlayerName = ""
-      , display = LifePanel
       , counterMode = Health
       }
     , Cmd.none
@@ -85,6 +79,7 @@ createPlayer : ( PlayerId, String ) -> PlayerInfo
 createPlayer ( id, name ) =
     { id = id
     , name = name
+    , commanderName = Nothing
     , lifeLog = createLog 40
     , poisonLog = createLog 0
     , editing = True
@@ -101,9 +96,9 @@ type Msg
     | Reset
     | UpdateNewPlayerName String
     | EditPlayerName PlayerId String
+    | EditCommanderName PlayerId String
     | AddPlayer String
     | SelectPlayer Int
-    | TogglePanel
     | UpdateLife PlayerId Diff
     | UpdatePoison PlayerId Diff
     | SetMode CounterMode
@@ -174,18 +169,6 @@ update msg model =
             , Cmd.none
             )
 
-        TogglePanel ->
-            ( { model
-                | display =
-                    if model.display == LifePanel then
-                        PoisonPanel
-
-                    else
-                        LifePanel
-              }
-            , Cmd.none
-            )
-
         AddPlayer name ->
             let
                 id =
@@ -221,6 +204,18 @@ update msg model =
             ( { model | playerInfo = updatedPlayerInfo }
             , Cmd.none
             )
+
+        EditCommanderName id name ->
+            let
+                commanderName =
+                    if name == "" then Nothing
+                    else Just name
+                updatedPlayerInfo =
+                    Dict.update id (Maybe.map (\p -> { p | commanderName = commanderName })) model.playerInfo
+            in
+                ( { model | playerInfo = updatedPlayerInfo }
+                , Cmd.none
+                )
 
 
 type Key
@@ -327,13 +322,18 @@ viewAccented accent model =
             ]
             [ el
                 [ width fill
-                , height <| fillPortion 1
                 ]
               <|
                 viewNameBadges accent model
+            , row
+                [ width fill
+                , height <| fillPortion 1
+                , Element.explain Debug.todo
+                ]
+                [ text "Count Log" ]
             , el
                 [ width fill
-                , height <| fillPortion 2
+                , height <| fillPortion 1
                 ]
                 (model.players
                     |> List.drop model.selectedPlayer
@@ -342,6 +342,11 @@ viewAccented accent model =
                     |> Maybe.map (viewCountPanel accent model)
                     |> Maybe.withDefault (text "Error finding player")
                 )
+            , el
+                [ width fill
+                ]
+              <|
+                viewCountModes accent
             ]
 
 
@@ -407,9 +412,14 @@ viewNameBadges accent model =
             , placeholder = "New Player"
             , label = "New player name"
             }
+
+        columns =
+            if List.length model.players < 4 then 1
+            else if List.length model.players < 6 then 2
+            else 3
     in
         maybeBadges
-            |> Maybe.map (\badges -> Badges.viewBadgeColumns theme 3 badges newBadge)
+            |> Maybe.map (\badges -> Badges.viewBadgeColumns theme columns badges newBadge)
             |> Maybe.withDefault (text "Error displaying player badges")
 
 
@@ -429,100 +439,43 @@ themePoison =
     }
 
 
+themeCommander : Counter.Theme
+themeCommander =
+    { bg = rgb 0.9 0.9 0.9
+    , buttonBg = rgb 0.2 0.5 0.9
+    , buttonBgShadow = rgb 0.2 0.5 0.8
+    }
+
+
 viewCountPanel : Accent -> Model -> PlayerInfo -> Element Msg
 viewCountPanel accent model selectedPlayer =
-    column
-        [ width fill
-        , height fill
-        , Element.explain Debug.todo
-        ]
-        [ row
-            [ width fill
-            , height <| fillPortion 1
-            , Element.explain Debug.todo
-            ]
-            [ text "Count Log" ]
-        , row
-            [ width fill
-            , height <| fillPortion 4
-            ]
-            [ viewCounterPanel themeHealth model.selectedPlayer (\id diff -> UpdateLife id diff) selectedPlayer.name selectedPlayer.lifeLog
-            ]
-        , el
-            [ width fill
-            ]
-          <|
-            viewCountModes accent
-        ]
+    case model.counterMode of
+        Poison ->
+            viewBasicCounter
+                themePoison
+                { key = model.selectedPlayer
+                , onChange = UpdateLife
+                , label = selectedPlayer.name
+                , log = selectedPlayer.poisonLog
+                }
 
+        Commander ->
+            viewBasicCounter
+                themeCommander
+                { key = model.selectedPlayer
+                , onChange = UpdateLife
+                , label = selectedPlayer.name
+                , log = selectedPlayer.lifeLog
+                }
 
-viewCounter : Accent -> Model -> Element Msg
-viewCounter accent model =
-    column
-        [ width fill
-        , height fill
-        , Element.explain Debug.todo
-        ]
-        [ row
-            [ width fill
-            , height <| fillPortion 1
-            ]
-            [ spacer
-            , el
-                [ width <| fillPortion 1
-                , height fill
-                ]
-              <|
-                button
-                    [ centerX, centerY ]
-                    { onPress = Nothing
-                    , label = text "+1"
-                    }
-            , spacer
-            ]
-        , row
-            [ width fill
-            , height <| fillPortion 1
-            ]
-            [ el
-                [ width <| fillPortion 1
-                , height fill
-                ]
-              <|
-                text "four"
-            , spacer
-            , el
-                [ width <| fillPortion 1
-                , height fill
-                ]
-              <|
-                text "six"
-            ]
-        , row
-            [ width fill
-            , height <| fillPortion 1
-            ]
-            [ spacer
-            , el
-                [ width <| fillPortion 1
-                , height fill
-                ]
-              <|
-                el [ centerX, centerY ] <|
-                    text "eight"
-            , spacer
-            ]
-        ]
-
-
-spacer : Element Msg
-spacer =
-    el
-        [ width <| fillPortion 1
-        , height <| fillPortion 1
-        ]
-    <|
-        Element.none
+        _ ->
+            viewBasicCounter
+                themeHealth
+                { key = model.selectedPlayer
+                , onChange = UpdatePoison
+                , label = selectedPlayer.name
+                , log = selectedPlayer.lifeLog
+                }
 
 
 viewCountModes : Accent -> Element Msg
