@@ -1,10 +1,11 @@
-module Counter exposing (OnChangeCount, Theme, viewCounterButton, viewBasicCounter)
+module Counter exposing (OnChangeCount, Theme, viewCounterButton, viewBasicCounter, viewMultiCounter, MultiCounterEntry)
 
-import Element exposing (Color, Element, alignRight, alignTop, centerX, centerY, column, el, fill, fillPortion, height, paddingXY, rgb, row, text, width)
+import Element exposing (Color, Element, alignRight, alignTop, centerX, centerY, column, el, fill, fillPortion, height, paddingXY, paragraph, rgb, rgba, row, text, width)
 import Element.Background as Background
 import Element.Border as Border
+import Element.Events exposing (onFocus)
 import Element.Font as Font
-import Element.Input exposing (button)
+import Element.Input exposing (button, labelHidden, placeholder)
 import Log exposing (Diff, Log)
 
 
@@ -15,33 +16,40 @@ type alias Theme =
     }
 
 
-type alias OnChangeCount msg key =
+type alias Stat = String
+
+
+type alias OnChangeCount key msg =
     key -> Diff -> msg
 
 
-type alias OnChangeName msg key =
+type alias OnChangeName key msg =
     key -> String -> msg
 
 
-type alias BasicCounterData msg key =
+type alias OnFocus key msg =
+    key -> msg
+
+
+type alias BasicCounterData key msg =
     { key : key
-    , onChange : OnChangeCount msg key
+    , onChange : OnChangeCount key msg
     , label : String
-    , log : Log
+    , stat : Stat
     }
 
 
-viewBasicCounter : Theme -> BasicCounterData msg key -> Element msg
-viewBasicCounter theme counter =
+viewBasicCounter : Theme -> BasicCounterData key msg -> Element msg
+viewBasicCounter theme data =
     row
         [ width fill
         , height fill
         ]
-        [ viewCounterLeftButtons theme counter.key counter.onChange
+        [ viewCounterLeftButtons theme data.key data.onChange
         , el
             [ width <| fillPortion 2
             , height fill
-            , Border.color <| theme.buttonBgShadow
+            , Border.color theme.buttonBgShadow
             , Border.widthEach { left = 8, right = 8, top = 0, bottom = 0 }
             ]
           <|
@@ -54,31 +62,105 @@ viewBasicCounter theme counter =
                 [ Font.size 48
                 ]
               <|
-                el [ centerX, centerY ] <| text counter.label
+                el [ centerX, centerY ] <| text data.label
             , el
                 [ Font.size 48
                 , alignRight
                 ]
               <|
-                el [ centerX, centerY ] <| text <| String.fromInt <| Log.current counter.log
+                el [ centerX, centerY ] <| text data.stat
             ]
-        , viewCounterRightButtons theme counter.key counter.onChange
+        , viewCounterRightButtons theme data.key data.onChange
         ]
 
 
-type alias MultiCounterData msg key =
+type alias MultiCounterEntry key =
     { key : key
-    , onChange : OnChangeName msg key
-    , label : String
+    , name : String
+    , stat : String
+    , placeholder : String
     }
 
 
-viewMultiCounter : Theme -> key -> OnChangeCount msg key -> String -> Log -> Element msg
-viewMultiCounter theme key change name log =
-    Element.none
+type alias MultiCounterData key msg =
+    { key : key
+    , onChangeCount : OnChangeCount key msg
+    , onChangeName : OnChangeName key msg
+    , onFocus : OnFocus key msg
+    , focused : key
+    , label : String
+    , entries : List (MultiCounterEntry key)
+    }
 
 
-viewCounterLeftButtons : Theme -> key -> OnChangeCount msg key -> Element msg
+viewMultiCounter : Theme -> MultiCounterData comparable msg -> Element msg
+viewMultiCounter theme data =
+    let
+        counterRow : MultiCounterEntry comparable -> Element msg
+        counterRow { key, name, stat, placeholder } =
+            row
+                [ width fill
+                ]
+                [ Element.Input.text
+                    [ onFocus <| data.onFocus key
+                    , Border.color <| rgba 1 1 1 0
+                    , Font.size 32
+                    ]
+                    { onChange = data.onChangeName key
+                    , text = name
+                    , placeholder = Just <| Element.Input.placeholder [] <| text placeholder
+                    , label = labelHidden <| placeholder
+                    }
+                , el
+                    [ alignRight
+                    , Font.size 48
+                    ]
+                  <|
+                    text stat
+                ]
+
+        rows : Element msg
+        rows =
+            column
+                [ width fill
+                , height fill
+                ]
+                [ el
+                    [ centerX
+                    , paddingXY 30 30
+                    , Font.size 32
+                    ]
+                  <|
+                    paragraph
+                        [ centerX ]
+                        [ text data.label ]
+                , column
+                    [ width fill
+                    , height fill
+                    , paddingXY 30 30
+                    ]
+                  <|
+                    List.map counterRow data.entries
+                ]
+    in
+        row
+            [ width fill
+            , height fill
+            ]
+            [ viewCounterLeftButtons theme data.key data.onChangeCount
+            , el
+                [ width <| fillPortion 2
+                , height fill
+                , Border.color theme.buttonBgShadow
+                , Border.widthEach { left = 8, right = 8, top = 0, bottom = 0 }
+                ]
+              <|
+                rows
+            , viewCounterRightButtons theme data.key data.onChangeCount
+            ]
+
+
+viewCounterLeftButtons : Theme -> key -> OnChangeCount key msg -> Element msg
 viewCounterLeftButtons theme key change =
     column
          [ width <| fillPortion 1
@@ -109,7 +191,7 @@ viewCounterLeftButtons theme key change =
          ]
 
 
-viewCounterRightButtons : Theme -> key -> OnChangeCount msg key -> Element msg
+viewCounterRightButtons : Theme -> key -> OnChangeCount key msg -> Element msg
 viewCounterRightButtons theme key change =
     column
         [ width <| fillPortion 1

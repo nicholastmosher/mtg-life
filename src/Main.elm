@@ -3,7 +3,7 @@ module Main exposing (Model, init, main)
 import Browser
 import Browser.Dom as Dom
 import Browser.Events exposing (onKeyDown)
-import Counter exposing (Theme, viewBasicCounter)
+import Counter exposing (MultiCounterEntry, Theme, viewBasicCounter, viewMultiCounter)
 import Dict exposing (Dict)
 import Element exposing (Color, Element, centerX, centerY, column, el, fill, fillPortion, height, paddingXY, rgb, rgb255, row, text, width)
 import Element.Border as Border
@@ -15,6 +15,7 @@ import Log exposing (Diff, Log, createLog, update)
 import Badges
 import Svg exposing (Svg)
 import Task
+import Utils exposing (listUnwrapMaybe)
 
 
 main =
@@ -39,10 +40,15 @@ type alias PlayerId =
     Int
 
 
+type alias CommanderLogs = Dict PlayerId Log
+
+
 type alias PlayerInfo =
     { id : PlayerId
     , name : String
-    , commanderName : Maybe String
+    , commanderName : String
+    , selectedCommander : PlayerId
+    , incomingCommanders : CommanderLogs
     , lifeLog : Log
     , poisonLog : Log
     , editing : Bool
@@ -79,11 +85,47 @@ createPlayer : ( PlayerId, String ) -> PlayerInfo
 createPlayer ( id, name ) =
     { id = id
     , name = name
-    , commanderName = Nothing
+    , commanderName = ""
+    , selectedCommander = id
+    , incomingCommanders = Dict.fromList [ (id, Log.createLog 0) ]
     , lifeLog = createLog 40
     , poisonLog = createLog 0
     , editing = True
     }
+
+
+addPlayer : String -> Model -> Model
+addPlayer name model =
+    let
+        players =
+            model.players ++ [ model.nextPlayerId ]
+
+        playerStub = createPlayer (model.nextPlayerId, name)
+
+        initializedPlayer =
+            { playerStub
+                | incomingCommanders =
+                    players
+                        |> List.map (\id -> ( id, Log.createLog 0 ))
+                        |> Dict.fromList
+            }
+
+        appendPlayerToPlayerInfo : PlayerId -> PlayerInfo -> PlayerInfo
+        appendPlayerToPlayerInfo pid pInfo =
+            { pInfo | incomingCommanders = Dict.insert pid (Log.createLog 0) pInfo.incomingCommanders }
+
+        updatedPlayerInfos =
+            model.playerInfo
+                |> Dict.map (\_ -> (appendPlayerToPlayerInfo playerStub.id))
+
+        playerInfo = Dict.insert initializedPlayer.id initializedPlayer updatedPlayerInfos
+
+    in
+        { model
+            | players = players
+            , playerInfo = playerInfo
+            , nextPlayerId = model.nextPlayerId + 1
+        }
 
 
 
@@ -92,11 +134,16 @@ createPlayer ( id, name ) =
 
 type Msg
     = Noop
-    | KeyPress Key
     | Reset
-    | UpdateNewPlayerName String
+    | KeyPress Key
     | EditPlayerName PlayerId String
     | EditCommanderName PlayerId String
+
+    -- Selected player, PlayerId of now-selected commander
+    | SelectCommander PlayerId PlayerId
+
+    -- Selected player, PlayerId of incoming damage, damage diff
+    | UpdateCommanderDamage PlayerId PlayerId Diff
     | AddPlayer String
     | SelectPlayer Int
     | UpdateLife PlayerId Diff
@@ -144,11 +191,6 @@ update msg model =
             , Cmd.none
             )
 
-        UpdateNewPlayerName name ->
-            ( { model | newPlayerName = name }
-            , Cmd.none
-            )
-
         UpdateLife id lifeDiff ->
             ( { model
                 | playerInfo =
@@ -170,18 +212,8 @@ update msg model =
             )
 
         AddPlayer name ->
-            let
-                id =
-                    model.nextPlayerId
-            in
-            ( { model
-                | playerInfo = Dict.insert id (createPlayer ( id, name )) model.playerInfo
-                , players = model.players ++ [ id ]
-                , selectedPlayer = id
-                , nextPlayerId = id + 1
-                , newPlayerName = ""
-              }
-            , Task.attempt (always Noop) (Dom.focus ("player-" ++ String.fromInt id))
+            ( addPlayer name model
+            , Task.attempt (always Noop) (Dom.focus ("player-" ++ String.fromInt model.nextPlayerId))
             )
 
         SelectPlayer id ->
@@ -207,11 +239,41 @@ update msg model =
 
         EditCommanderName id name ->
             let
-                commanderName =
-                    if name == "" then Nothing
-                    else Just name
                 updatedPlayerInfo =
-                    Dict.update id (Maybe.map (\p -> { p | commanderName = commanderName })) model.playerInfo
+                    model.playerInfo
+                        |> Dict.update id (Maybe.map (\p -> { p | commanderName = name }))
+            in
+                ( { model | playerInfo = updatedPlayerInfo }
+                , Cmd.none
+                )
+
+        SelectCommander selectedPlayer selectedCommander ->
+            let
+                _ = Debug.log ("Select Commander: " ++ String.fromInt selectedPlayer ++ ", " ++ String.fromInt selectedCommander) ()
+                updatedPlayerInfo =
+                    model.playerInfo
+                        |> Dict.update
+                            selectedPlayer
+                            (Maybe.map (\p -> { p | selectedCommander = selectedCommander }))
+            in
+                ( { model | playerInfo = updatedPlayerInfo }
+                , Cmd.none
+                )
+
+        UpdateCommanderDamage selectedPlayer selectedCommander diff ->
+            let
+                updateCommanderLogs : CommanderLogs -> CommanderLogs
+                updateCommanderLogs logs =
+                    Dict.update
+                        selectedCommander
+                        (Maybe.map (\log -> Log.update diff log))
+                        logs
+
+                updatedPlayerInfo =
+                    Dict.update
+                        selectedPlayer
+                        (Maybe.map (\p -> { p | incomingCommanders = updateCommanderLogs p.incomingCommanders }))
+                        model.playerInfo
             in
                 ( { model | playerInfo = updatedPlayerInfo }
                 , Cmd.none
@@ -339,7 +401,7 @@ viewAccented accent model =
                     |> List.drop model.selectedPlayer
                     |> List.head
                     |> Maybe.andThen (\id -> Dict.get id model.playerInfo)
-                    |> Maybe.map (viewCountPanel accent model)
+                    |> Maybe.map (viewCountPanel model)
                     |> Maybe.withDefault (text "Error finding player")
                 )
             , el
@@ -348,23 +410,6 @@ viewAccented accent model =
               <|
                 viewCountModes accent
             ]
-
-
-listUnwrapMaybe : List (Maybe a) -> Maybe (List a)
-listUnwrapMaybe listMaybes =
-    case listMaybes of
-        (Just head) :: tail ->
-            let
-                maybeTail =
-                    listUnwrapMaybe tail
-            in
-            Maybe.map (\t -> head :: t) maybeTail
-
-        [] ->
-            Just []
-
-        _ ->
-            Nothing
 
 
 namesPanelTheme : Accent -> Badges.Theme
@@ -431,12 +476,34 @@ themeHealth =
     }
 
 
+viewHealthCounter : PlayerInfo -> Element Msg
+viewHealthCounter selectedPlayer =
+    viewBasicCounter
+        themeHealth
+        { key = selectedPlayer.id
+        , onChange = UpdateLife
+        , label = selectedPlayer.name
+        , stat = String.fromInt <| Log.current selectedPlayer.lifeLog
+        }
+
+
 themePoison : Counter.Theme
 themePoison =
     { bg = rgb 0.9 0.9 0.9
     , buttonBg = rgb 0.3 0.8 0.3
     , buttonBgShadow = rgb 0.3 0.7 0.3
     }
+
+
+viewPoisonCounter : PlayerInfo -> Element Msg
+viewPoisonCounter selectedPlayer =
+    viewBasicCounter
+        themePoison
+        { key = selectedPlayer.id
+        , onChange = UpdatePoison
+        , label = selectedPlayer.name
+        , stat = String.fromInt <| Log.current selectedPlayer.poisonLog
+        }
 
 
 themeCommander : Counter.Theme
@@ -447,35 +514,57 @@ themeCommander =
     }
 
 
-viewCountPanel : Accent -> Model -> PlayerInfo -> Element Msg
-viewCountPanel accent model selectedPlayer =
-    case model.counterMode of
-        Poison ->
-            viewBasicCounter
-                themePoison
-                { key = model.selectedPlayer
-                , onChange = UpdateLife
-                , label = selectedPlayer.name
-                , log = selectedPlayer.poisonLog
-                }
+viewCommanderCounter : Model -> PlayerInfo -> Element Msg
+viewCommanderCounter model selectedPlayer =
+    let
+        playerDisplayName : PlayerInfo -> String
+        playerDisplayName player =
+            if player.name == "" then "Player " ++ (String.fromInt player.id)
+            else player.name
 
-        Commander ->
-            viewBasicCounter
+        maybePlayerEntries : Maybe (List (MultiCounterEntry PlayerId))
+        maybePlayerEntries =
+            model.players
+                -- List (PlayerId, Maybe PlayerInfo, Maybe Log)
+                |> List.map (\pid -> (pid, Dict.get pid model.playerInfo, Dict.get pid selectedPlayer.incomingCommanders))
+                -- List (Maybe (MultiCounterEntry PlayerId))
+                |> List.map (\( pid, maybePInfo, maybeLog ) ->
+                                maybePInfo |> Maybe.andThen (\pInfo ->
+                                maybeLog |> Maybe.map (\log ->
+                                    { key = pid
+                                    , name = pInfo.commanderName
+                                    , stat = String.fromInt <| Log.current log
+                                    , placeholder = (playerDisplayName pInfo) ++ "'s commander"
+                                    })))
+                -- Maybe (List (MultiCounterEntry PlayerId))
+                |> listUnwrapMaybe
+
+        commanderCounter : List (MultiCounterEntry PlayerId) -> Element Msg
+        commanderCounter playerList =
+            viewMultiCounter
                 themeCommander
                 { key = model.selectedPlayer
-                , onChange = UpdateLife
-                , label = selectedPlayer.name
-                , log = selectedPlayer.lifeLog
+                , onChangeCount = (\id -> UpdateCommanderDamage id selectedPlayer.selectedCommander)
+                , onChangeName = EditCommanderName
+                , onFocus = SelectCommander selectedPlayer.id
+                , focused = selectedPlayer.selectedCommander
+                , label = "Damage to " ++ selectedPlayer.name
+                , entries = playerList
                 }
+    in
+        maybePlayerEntries
+            |> Maybe.map commanderCounter
+            |> Maybe.withDefault (text "Error displaying commander counter")
 
-        _ ->
-            viewBasicCounter
-                themeHealth
-                { key = model.selectedPlayer
-                , onChange = UpdatePoison
-                , label = selectedPlayer.name
-                , log = selectedPlayer.lifeLog
-                }
+
+viewCountPanel : Model -> PlayerInfo -> Element Msg
+viewCountPanel model selectedPlayer =
+    case model.counterMode of
+        Poison -> viewPoisonCounter selectedPlayer
+
+        Commander -> viewCommanderCounter model selectedPlayer
+
+        _ -> viewHealthCounter selectedPlayer
 
 
 viewCountModes : Accent -> Element Msg
