@@ -384,12 +384,13 @@ viewAccented accent model =
             ]
             [ el
                 [ width fill
+                , height fill
                 ]
               <|
                 viewNameBadges accent model
             , row
                 [ width fill
-                , height <| fillPortion 1
+                , height fill
                 , Element.explain Debug.todo
                 ]
                 [ text "Count Log" ]
