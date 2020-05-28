@@ -5,13 +5,13 @@ import Browser.Dom as Dom
 import Browser.Events exposing (onKeyDown)
 import Counter exposing (MultiCounterEntry, Theme, viewBasicCounter, viewMultiCounter)
 import Dict exposing (Dict)
-import Element exposing (Color, Element, centerX, centerY, column, el, fill, fillPortion, height, paddingXY, rgb, rgb255, row, text, width)
+import Element exposing (Color, Element, centerX, centerY, column, el, fill, fillPortion, height, paddingXY, px, rgb, rgb255, row, text, width)
 import Element.Border as Border
 import Element.Input exposing (button)
 import Html exposing (Html)
 import Icons
 import Json.Decode as Decode
-import Log exposing (Diff, Log, createLog, update)
+import Log exposing (Diff, Log, createLog, update, viewLog)
 import Badges
 import Svg exposing (Svg)
 import Task
@@ -49,7 +49,7 @@ type alias PlayerInfo =
     , commanderName : String
     , selectedCommander : PlayerId
     , incomingCommanders : CommanderLogs
-    , lifeLog : Log
+    , healthLog : Log
     , poisonLog : Log
     , editing : Bool
     }
@@ -88,7 +88,7 @@ createPlayer ( id, name ) =
     , commanderName = ""
     , selectedCommander = id
     , incomingCommanders = Dict.fromList [ (id, Log.createLog 0) ]
-    , lifeLog = createLog 40
+    , healthLog = createLog 40
     , poisonLog = createLog 0
     , editing = True
     }
@@ -146,9 +146,16 @@ type Msg
     | UpdateCommanderDamage PlayerId PlayerId Diff
     | AddPlayer String
     | SelectPlayer Int
-    | UpdateLife PlayerId Diff
+    | UpdateHealth PlayerId Diff
     | UpdatePoison PlayerId Diff
     | SetMode CounterMode
+
+
+scrollLog : String -> Cmd Msg
+scrollLog id =
+    Dom.getViewportOf id
+        |> Task.andThen (\info -> Dom.setViewportOf id info.scene.width 0)
+        |> Task.attempt (\_ -> Noop)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -172,16 +179,16 @@ update msg model =
                     update (UpdatePoison model.selectedPlayer 5) model
 
                 ( ArrowUp, _ ) ->
-                    update (UpdateLife model.selectedPlayer 1) model
+                    update (UpdateHealth model.selectedPlayer 1) model
 
                 ( ArrowDown, _ ) ->
-                    update (UpdateLife model.selectedPlayer -1) model
+                    update (UpdateHealth model.selectedPlayer -1) model
 
                 ( ArrowLeft, _ ) ->
-                    update (UpdateLife model.selectedPlayer -5) model
+                    update (UpdateHealth model.selectedPlayer -5) model
 
                 ( ArrowRight, _ ) ->
-                    update (UpdateLife model.selectedPlayer 5) model
+                    update (UpdateHealth model.selectedPlayer 5) model
 
                 _ ->
                     ( model, Cmd.none )
@@ -191,14 +198,14 @@ update msg model =
             , Cmd.none
             )
 
-        UpdateLife id lifeDiff ->
+        UpdateHealth id healthDiff ->
             ( { model
                 | playerInfo =
                     Dict.update id
-                        (Maybe.map (\pInfo -> { pInfo | lifeLog = Log.update lifeDiff pInfo.lifeLog }))
+                        (Maybe.map (\pInfo -> { pInfo | healthLog = Log.update healthDiff pInfo.healthLog }))
                         model.playerInfo
               }
-            , Cmd.none
+            , scrollLog "log"
             )
 
         UpdatePoison id poisonDiff ->
@@ -208,7 +215,7 @@ update msg model =
                         (Maybe.map (\pInfo -> { pInfo | poisonLog = Log.update poisonDiff pInfo.poisonLog }))
                         model.playerInfo
               }
-            , Cmd.none
+            , scrollLog "log"
             )
 
         AddPlayer name ->
@@ -249,7 +256,6 @@ update msg model =
 
         SelectCommander selectedPlayer selectedCommander ->
             let
-                _ = Debug.log ("Select Commander: " ++ String.fromInt selectedPlayer ++ ", " ++ String.fromInt selectedCommander) ()
                 updatedPlayerInfo =
                     model.playerInfo
                         |> Dict.update
@@ -318,8 +324,8 @@ subscriptions _ =
     onKeyDown keyDecoder
 
 
-accentLife : Accent
-accentLife =
+accentHealth : Accent
+accentHealth =
     { border = rgb 0.9 0.3 0.3
     }
 
@@ -352,7 +358,7 @@ view : Model -> Html Msg
 view model =
     case model.counterMode of
         Health ->
-            viewAccented accentLife model
+            viewAccented accentHealth model
 
         Poison ->
             viewAccented accentPoison model
@@ -384,19 +390,18 @@ viewAccented accent model =
             ]
             [ el
                 [ width fill
-                , height fill
+                , height <| fillPortion 1
                 ]
               <|
                 viewNameBadges accent model
             , row
                 [ width fill
-                , height fill
-                , Element.explain Debug.todo
                 ]
-                [ text "Count Log" ]
+                [ viewActiveLog accent model
+                ]
             , el
                 [ width fill
-                , height <| fillPortion 1
+                , height <| fillPortion 2
                 ]
                 (model.players
                     |> List.drop model.selectedPlayer
@@ -411,6 +416,34 @@ viewAccented accent model =
               <|
                 viewCountModes accent
             ]
+
+
+logTheme : Accent -> Log.Theme
+logTheme accent =
+    { border = accent.border
+    }
+
+
+viewActiveLog : Accent -> Model -> Element Msg
+viewActiveLog accent model =
+    let
+        maybeSelectedPlayer : Maybe PlayerInfo
+        maybeSelectedPlayer =
+            model.players
+                |> List.drop model.selectedPlayer
+                |> List.head
+                |> Maybe.andThen (\id -> Dict.get id model.playerInfo)
+
+        selectedLog : PlayerInfo -> Log
+        selectedLog player =
+            case model.counterMode of
+                Poison -> player.poisonLog
+                _ -> player.healthLog
+    in
+        maybeSelectedPlayer
+            |> Maybe.map selectedLog
+            |> Maybe.map (viewLog (logTheme accent) "log")
+            |> Maybe.withDefault (text "Unable to render log")
 
 
 namesPanelTheme : Accent -> Badges.Theme
@@ -433,7 +466,7 @@ viewNameBadges accent model =
         playerStat player =
             case model.counterMode of
                 Poison -> String.fromInt <| Log.current player.poisonLog
-                _ -> String.fromInt <| Log.current player.lifeLog
+                _ -> String.fromInt <| Log.current player.healthLog
 
         playerBadge : PlayerInfo -> Badges.ExistingBadge Msg
         playerBadge player =
@@ -482,9 +515,9 @@ viewHealthCounter selectedPlayer =
     viewBasicCounter
         themeHealth
         { key = selectedPlayer.id
-        , onChange = UpdateLife
+        , onChange = UpdateHealth
         , label = selectedPlayer.name
-        , stat = String.fromInt <| Log.current selectedPlayer.lifeLog
+        , stat = String.fromInt <| Log.current selectedPlayer.healthLog
         }
 
 

@@ -1,8 +1,9 @@
-module Log exposing (Diff, Log(..), createLog, current, history, update, viewDiffBox, viewDiffLog, viewTotalBox)
+module Log exposing (Diff, Log(..), Theme, createLog, current, history, update, viewDiffItem, viewLog, viewAccumItem)
 
-import Element exposing (Element, alignTop, column, el, fill, height, paddingXY, rgb, row, text, width)
+import Element exposing (Color, Element, alignRight, column, el, fill, height, htmlAttribute, paddingXY, rgb, row, scrollbarX, text, width)
 import Element.Border as Border
 import Element.Font as Font
+import Html.Attributes
 
 
 type alias Diff =
@@ -43,60 +44,76 @@ update diff (Log log) =
         }
 
 
-viewDiffLog : Log -> Element msg
-viewDiffLog log =
+type alias Theme =
+    { border : Color
+    }
+
+
+viewLog : Theme -> String -> Log -> Element msg
+viewLog theme id log =
     let
-        ( diffs, totals ) =
-            List.unzip (history log)
+        items = List.reverse <| history log
     in
     row
         [ height fill
         , width fill
-        , Border.color (rgb 0 0 0)
+        , Border.color theme.border
         , Border.solid
-        , Border.width 2
+        , Border.width 4
+        , scrollbarX
+        , htmlAttribute <| Html.Attributes.id id
         ]
-        [ column
-            [ alignTop
-            ]
-            (List.map (\i -> viewDiffBox i) diffs)
-        , column
-            [ alignTop
-            ]
-            (List.map (\i -> viewTotalBox i) totals)
+    <|
+        List.map (viewItemColumn theme) items
+
+
+viewItemColumn : Theme -> (Diff, Int) -> Element msg
+viewItemColumn theme (diff, accum) =
+    column
+        [ height fill
+        , alignRight
+        ]
+        [ viewDiffItem theme diff
+        , viewAccumItem theme accum
         ]
 
 
-viewTotalBox : Int -> Element msg
-viewTotalBox int =
+viewAccumItem : Theme -> Int -> Element msg
+viewAccumItem theme int =
     el
-        [ Border.widthXY 1 2
+        [ width fill
+        , height fill
+        , Border.width 4
         , Border.solid
-        , Border.color (rgb 0 0 0)
-        , paddingXY 10 10
-        , width fill
+        , Border.color theme.border
+        , Font.size 48
+        , Font.alignRight
+        , paddingXY 20 20
         ]
         (text (String.fromInt int))
 
 
-viewDiffBox : Int -> Element msg
-viewDiffBox int =
+viewDiffItem : Theme -> Diff -> Element msg
+viewDiffItem theme diff =
     let
         natural =
-            int > 0
+            diff > 0
 
         positive =
-            int >= 0
+            diff >= 0
 
         negative =
-            int < 0
+            diff < 0
     in
     el
-        [ Border.widthXY 1 2
+        [ width fill
+        , height fill
+        , Border.width 4
         , Border.solid
-        , Border.color (rgb 0 0 0)
-        , paddingXY 10 10
-        , width fill
+        , Border.color theme.border
+        , Font.size 48
+        , Font.alignRight
+        , paddingXY 20 20
         , if natural then
             Font.color (rgb 0.3 0.9 0.3)
 
@@ -113,6 +130,6 @@ viewDiffBox int =
               else
                 ""
              )
-                ++ String.fromInt int
+                ++ String.fromInt diff
             )
         )
